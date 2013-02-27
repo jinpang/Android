@@ -1,0 +1,77 @@
+2  编译
+2.1	Linux环境
+参考linphone_android/README
+2.1.1	系统准备
+版本：CentOS 6.3 64bit
+系统安装完成后更新。
+注：libtoolize在libtool中，aclocal已在autoconf中
+#yum install update   
+#yum install autoconf automake libtool pkgconfig 
+2.1.2	安装JDK
+Linphone_android/README要求使用Oracle JDK 1.6。到Oracle官网下jdk1.6 update 38。
+#chmod u+x jdk-6u38-linux-x64-rpm.bin 
+#./jdk-6u38-linux-x64-rpm.bin
+#java –version
+2.1.3	安装ANT
+centos自带的ant依赖OpenJDK。
+#cd /root/soft 
+#wget http://mirror.symnds.com/software/Apache//ant/binaries/apache-ant-1.8.4-bin.zip
+#unzip apache-ant-1.8.4-bin.zip
+#mv apache-ant-1.8.4 /usr/local
+#vi /root/.bash_profile //设置 $PATH=$PATH:/usr/local/apache-ant-1.8.4/bin
+#ant --version
+
+2.1.4	安装Android SDK
+#cd /root/soft
+# wget http://dl.google.com/android/adt/adt-bundle-linux-x86_64.zip
+#unzip  adt-bundle-linux-x86_64.zip
+#mv android-ndk-r8d /usr/local
+#vi /root/.bash_profile //设置 $PATH:/usr/local/adt-bundle-linux-x86_64/sdk/tools //$PATH:/usr/local/adt-bundle-linux-x86_64/sdk/platform-tools
+#android --help
+#adb devices
+
+2.1.5	安装Android NDK
+
+注意ndk的API 还是14, 官方的说法是：
+Note: All API levels above 14 still link against platforms/android-14 and no new platforms/android-N have been added. 
+#cd /root/soft
+#wget http://dl.google.com/android/ndk/android-ndk-r8d-linux-x86.tar.bz2
+#tar xvf android-ndk-r8d-linux-x86.tar.bz2
+#mv android-ndk-r8d /usr/local
+#vi /root/.bash_profile //设置 PATH=$PATH:/usr/local/android-ndk-r8d
+#ndk-build --version
+
+2.1.6	编译Linphone Android
+1)	安装i686相关库（NDK、SDK编译在32为模式下）
+#yum install ncurses-libs.i686 ncurses-devel.i686 zlib.i686 zlib-devel.i686 glibc.i686
+
+2)	编译
+#cd /usr/src
+# git clone git://git.linphone.org/linphone-android.git --recursive 
+#cd linphone-android
+#./prepare_sources.sh
+#make
+
+3)	编译结果
+
+-do-debug:
+ [zipalign] Running zip align on final apk...
+     [echo] Debug Package: /usr/src/linphone-android/bin/Linphone-debug.apk
+[propertyfile] Creating new property file: /usr/src/linphone-android/bin/build.prop
+[propertyfile] Updating property file: /usr/src/linphone-android/bin/build.prop
+[propertyfile] Updating property file: /usr/src/linphone-android/bin/build.prop
+[propertyfile] Updating property file: /usr/src/linphone-android/bin/build.prop
+
+-post-build:
+     [move] Moving 1 file to /usr/src/linphone-android/submodules/linphone/mediastreamer2/java/src/org/linphone/mediastream
+
+debug:
+
+BUILD SUCCESSFUL 
+
+4)	测试
+#adb devices
+#adb install /usr/src/linphone-android/bin/Linphone-debug.apk
+
+
+Note:This file comes from ypdeng.
