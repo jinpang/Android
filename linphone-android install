@@ -41,7 +41,10 @@ Note: All API levels above 14 still link against platforms/android-14 and no new
 #vi /root/.bash_profile //设置 PATH=$PATH:/usr/local/android-ndk-r8d
 #ndk-build --version
 
-2.1.6	编译Linphone Android
+2.1.6 安装git
+#yum -y install git-all git-gui make gcc ncurses-devel bison byacc flex gawk gettext ccache zlib-devel gtk2-devel lzo-devel pax-utilslibglade2-devel
+
+2.1.7	编译Linphone Android
 1)	安装i686相关库（NDK、SDK编译在32为模式下）
 #yum install ncurses-libs.i686 ncurses-devel.i686 zlib.i686 zlib-devel.i686 glibc.i686
 
