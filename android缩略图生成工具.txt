@@ -1,0 +1,105 @@
+在Android 2.2版本中，新增了一个ThumbnailUtils工具类来是实现缩略图，此工具类的功能是强大的，使用是简单，它提供了一个常量和三个方法。利用这些常数和方法，可以轻松快捷的实现图片和视频的缩略图功能。
+
+<1>ThumbnailUtils工具类
+
+常量：
+
+OPTIONS_RECYCLE_INPUT
+
+从此常量用于表示应该回收extractThumbnail(Bitmap, int, int, int)输入源图片(第一个参数)，除非输出图片就是输入图片。
+
+ 
+
+ 
+
+方法：
+
+　　　　Bitmap createVideoThumbnail(String filePath, int kind)
+
+　　　　创建一张视频的缩略图。如果视频已损坏或者格式不支持可能返回null。
+
+              参数：
+
+                                filePath： 视频文件路径
+
+　　　　                 kind：　　文件种类，可以是 MINI_KIND 或 MICRO_KIND
+
+　　　　Bitmap extractThumbnail(Bitmap source, int width, int height, int options)
+
+　　　　创建所需尺寸居中缩放的位图。
+
+　　　　参数：
+
+　　　　　　　　  source： 需要被创造缩略图的源位图对象
+
+　　　　　　　　  width：　生成目标的宽度
+
+　　　　　　　　 height： 生成目标的高度
+
+　　　　　　　　 options：在缩略图抽取时提供的选项
+
+　　　　Bitmap extractThumbnail(Bitmap source, int width, int height)
+
+　　　　创建所需尺寸居中缩放的位图。
+
+　　　　参数：
+
+　　　　　　　　source： 需要被创造缩略图的源位图对象
+
+　　　　　　　　width：　生成目标的宽度
+
+　　　　　　　　height： 生成目标的高度
+
+ 
+
+<2>具体实现：
+
+import android.app.Activity;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.media.ThumbnailUtils;
+import android.os.Bundle;
+import android.widget.ImageView;
+
+public class ThumbnailActivity extends Activity {  
+  
+  private Bitmap bitmap = null;
+	private ImageView image;
+     @Override  
+     public void onCreate(Bundle savedInstanceState) {  
+        super.onCreate(savedInstanceState);  
+        setContentView(R.layout.main);  
+        image = (ImageView) findViewById(R.id.image);  
+        //得到原图片
+        bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.v);
+        //得到缩略图
+        bitmap = ThumbnailUtils.extractThumbnail(bitmap, 100, 100);  
+        image.setImageBitmap(bitmap);  
+    }  
+}  
+
+
+<?xml version="1.0" encoding="utf-8"?>
+ <LinearLayout 
+     xmlns:android="http://schemas.android.com/apk/res/android" 
+     android:orientation="vertical"
+     android:background="#999999" 
+     android:layout_width="fill_parent" 
+     android:layout_height="fill_parent">
+     <ImageView  
+         android:layout_width="wrap_content" 
+         android:layout_height="wrap_content" 
+         android:src="@drawable/v"
+         android:layout_marginLeft="10dip"/>
+     <TextView  
+         android:layout_width="wrap_content" 
+         android:layout_height="wrap_content" 
+         android:text="缩略图：" 
+         android:textColor="#000000"/>
+     <ImageView android:id="@+id/image" 
+         android:layout_width="wrap_content" 
+         android:layout_height="wrap_content"
+         android:layout_marginLeft="10dip"/>
+ </LinearLayout>
