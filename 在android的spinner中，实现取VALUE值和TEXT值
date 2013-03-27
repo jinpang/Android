@@ -1,0 +1,56 @@
+实现在android的spinner实现取VALUE值和TEXT值，可以修改适配器，
+但是如果一个activity有多个spinner，就需要多声明几个适配器的全局变量。
+其实没有必要修改适配器，直接往适配器里面传对象，然后重写对象的toString()方法就可以简单解决。
+
+先声明一个对象，并重写对象的toString()。
+
+public class CItem {
+
+ private String ID = "";
+ private String Value = "";
+
+ public CItem () {
+  ID = "";
+  Value = "";
+ }
+
+ public CItem (String _ID, String _Value) {
+  ID = _ID;
+  Value = _Value;
+ }
+
+ @Override
+ public String toString() {           //为什么要重写toString()呢？因为适配器在显示数据的时候，如果传入适配器的对象不是字符串的情况下，直接就使用对象.toString()
+  // TODO Auto-generated method stub
+  return Value;
+ }
+public String GetID() {
+  return ID;
+ }
+
+ public String GetValue() {
+  return Value;
+ }
+}
+
+ 
+
+然后声明对象实例并加入到arraylist里面,并设置spinner的适配器
+
+Spinner Sp = (Spinner).............//
+
+List<CItem > lst = new ArrayList<CItem>();
+
+CItem  ct = new CItem ("1","测试");
+
+lst.Add(ct);;
+
+ArrayAdapter<CItem > Adapter = new ArrayAdapter<CItem>(context,
+    android.R.layout.simple_spinner_item, lst);
+
+Sp.SetAdapter(Adapter);
+取值：
+
+如果取TEXT值则可以直接取:Sp.getSelectedItem.ToString()或者:((CItem)Sp.getSelectedItem). GetValue() ;
+
+如果去Value值则可以这样取:((CItem)Sp.getSelectedItem).GetID();
