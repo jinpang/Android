@@ -1,0 +1,24 @@
+输入adb shell 时 提示error: more than one device and emulator
+第一种情况：确实用多个设备或者模拟器
+   解决办法：（指定连接某一个设备或者模拟器）
+
+1、获取模拟器/设备列表
+  
+  adb devices
+
+2、指定device来执行adb shell
+
+	  adb -s devicename shell
+
+例如：
+
+	adb -s emulator-5554 shell
+
+在多device的时候，执行adb命令一般都需要用参数-s指定device。
+例如卸载emulator-5554上的包com.soft.camera     adb -s emulator-5554 uninstall com.soft.camera
+
+第二种情况下：确实有一个设备或者模拟器（之所以显示有多个是因为此设备用过两次 使用命令 adb devices 会看到这个设备有两种状：offline 和 device）
+    解决办法：
+一般办法：在命令窗口输入adb start-server 重新启动adb.exe服务
+如果上述方法不可以，终极方法：
+打开任务栏，选择“进程”选项卡，找到adb.exe进程，结束之，重新启动就完事OK啦（或者在命令窗口输入命令adb kill-server ） 
