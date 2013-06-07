@@ -1,0 +1,115 @@
+
+1.利用Convertview缓存和ViewHolder静态类
+
+2.ListView背景，若不使用就设为null，或者删除窗口背景，方法如下
+
+代码修改：
+
+getWindow().setBackgroundDrawable(null);
+
+xml修改: 
+  
+首先确定res/values/styles.xml有
+ 
+@null
+ 
+然后编辑androidmainfest.xml
+ 
+android:theme="@style/NoBackgroundTheme">
+...
+
+3.图片尺寸要合适，否则会自动缩放；同时我们还要避免实时缩放，最好预先缩放到视图大小
+
+originalImage = Bitmap.createScaledBitmap(
+originalImage, //缩放图像
+view.getWidth(), // 视图宽度
+view.getHeight(), // 视图高度
+true); //线性过滤器
+
+4.invalidate()最好局部刷新,方法如下：
+
+invalidate(Rect dirty);
+invalidate(int left, int top, int right, int bottom);
+
+5.布局上尽量使用相对布局和Framelayout，减少层次嵌套,另外最好textview和Drawable复合使用
+
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="@string/hello"
+android:drawableLeft="@drawable/icon"/>
+
+6.建议使用自定义View
+
+class CustomView extends View {
+@Override
+protected void onDraw(Canvas canvas) {
+// 加入你的绘图编码
+}
+@Override
+protected void onMeasure(int widthMeasureSpec,
+int heightMeasureSpec) {
+// 计算视图的尺寸
+setMeasuredDimension(widthSpecSize, heightSpecSize);
+}
+}
+
+7.建议使用自定义布局
+
+class GridLayout extends ViewGroup {
+@Override
+protected void onLayout(boolean changed, int l, int t,
+int r, int b) {
+final int count = getChildCount();
+for (int i=0; i < count; i++) {
+final View child = getChildAt(i);
+if (child.getVisibility() != GONE) {
+// 计算子视图的位置
+child.layout(left, top, right, bottom);
+}
+}
+}
+}
+
+8.性能比较敏感的地方，减少java对象的创建
+
+1.测量 onmeasure()
+ 
+2.布局onlayout()
+ 
+3.绘图 ondraw() dispatchdraw()
+ 
+4.事件处理 ontouchevent() dispatchtouchevent()
+ 
+5.adapter： getview() bindview()
+
+强行限制（适用调试模式）
+ 
+int prevLimit = -1;
+try {
+prevLimit = Debug.setAllocationLimit(0);
+// 执行不分配内存的代码
+} catch (dalvik.system.AllocationLimitError e) {
+// 如果代码分配内存, Java 虚拟机会抛出错误
+Log.e(LOGTAG, e);
+} finally {
+Debug.setAllocationLimit(prevLimit);
+}
+
+9.适当软引用：内存缓存的最佳选择；适当弱引用：避免内存泄露，方法如下：
+
+ 
+private final HashMap> mCache;
+
+public void put(String key, T value) {
+mCache.put(key, new SoftReference(value));
+}
+
+public T get(String key, ValueBuilder builder) {
+T value = null;
+SoftReferece reference = mCache.get(key);
+if (reference != null) {
+ value = reference.get();
+}
+}
+
+come from http://blog.sina.com.cn/s/blog_4b93170a0102e1md.html
