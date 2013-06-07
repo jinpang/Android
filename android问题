@@ -48,4 +48,7 @@ servie是系统的组件，它由系统进程托管（servicemanager）；它们
 
 因此你可以把 Service 想象成一种消息服务，而你可以在任何有 Context 的地方调用 Context.startService、Context.stopService、Context.bindService，Context.unbindService，来控制它，你也可以在 Service 里注册 BroadcastReceiver，在其他地方通过发送 broadcast 来控制它，当然这些都是 Thread 做不到的。
 
+面试题目：
+http://wenku.baidu.com/view/d0f6318dd0d233d4b14e696d.html
+
 
