@@ -1,0 +1,71 @@
+  /**
+	 * 判断是否为平板
+	 * 
+	 * @return
+	 */
+	 public static boolean isPad(Context context) {
+	 WindowManager wm = (WindowManager) context
+	 .getSystemService(Context.WINDOW_SERVICE);
+	 Display display = wm.getDefaultDisplay();
+	 // 屏幕宽度
+	 float screenWidth = display.getWidth();
+	 // 屏幕高度
+	 float screenHeight = display.getHeight();
+	 DisplayMetrics dm = new DisplayMetrics();
+	 display.getMetrics(dm);
+	 double x = Math.pow(dm.widthPixels / dm.xdpi, 2);
+	 double y = Math.pow(dm.heightPixels / dm.ydpi, 2);
+	 // 屏幕尺寸
+	 double screenInches = Math.sqrt(x + y);
+	 // 大于6尺寸则为Pad
+	 if (screenInches >= PAD_SCREEN_INCHES) {
+	 return true;
+	 }
+	 return false;
+	 }
+   
+   
+   
+  /**
+	 * 判断是否为平板 这里的TelephonyManager在SDK里有如下几种： 
+	 * 
+	 * SIM_STATE_ABSENT 
+	 * SIM_STATE_NETWORK_LOCKED 
+	 * SIM_STATE_PIN_REQUIRED 
+	 * SIM_STATE_PUK_REQUIRED  
+	 * SIM_STATE_READY 
+	 * SIM_STATE_UNKNOWN 
+	 * 
+	 * @param context
+	 * @return
+	 */
+	public static boolean isPad(Context context) {
+		TelephonyManager telephony = (TelephonyManager) context
+				.getSystemService(Context.TELEPHONY_SERVICE);
+		int type = telephony.getSimState();
+		Log.i(TAG, "current devices type:" + type);
+		if (type == TelephonyManager.SIM_STATE_ABSENT || type == TelephonyManager.SIM_STATE_UNKNOWN ) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+  
+  
+   public boolean isTabletDevice() {
+        TelephonyManager telephony = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
+        int type = telephony.getPhoneType();
+        if (type == TelephonyManager.PHONE_TYPE_NONE) {
+            Log.i("is Tablet!");
+        } else {
+            Log.i("is phone!");
+        }
+        return false;
+    }
+    
+    这里的PhoneType在SDK里有如下几种：
+
+    PHONE_TYPE_NONE
+    PHONE_TYPE_GSM
+    PHONE_TYPE_CDMA
+    PHONE_TYPE_SIP
