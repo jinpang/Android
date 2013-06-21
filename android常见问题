@@ -1,0 +1,12 @@
+1、ScrollView也是一个Layout布局，可以让它内部的数据显示不下的时候出现滚动条，要注意的是不能在ScrollView中放多个组件，
+如果放了多个组件，会出现如下错误：ERROR/AndroidRuntime(271): Caused by: java.lang.IllegalStateException: ScrollView can host only one direct child （ScrollView只能包裹一个直接子元素）
+
+2、当我拖动列表的时候，会发现ListView的背景一片黑色，而且所有被选中的文字都变成一片漆黑。
+其实,这个问题发生的原因在于ListView存在缓存颜色机制，因此我们可以通过设定缓存颜色为透明的方法来解决这个问题。
+解决办法如下：
+A、通过布局属性来设定(ListView的属性中直接定义)
+android:cacheColorHint=”#00000000″
+
+B、在代码中直接设定
+listView.setCacheColorHint(Color.TRANSPARENT);
+listview.setAlwaysDrawnWithCacheEnabled(true); 
