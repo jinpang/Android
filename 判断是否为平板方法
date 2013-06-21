@@ -44,6 +44,7 @@
 				.getSystemService(Context.TELEPHONY_SERVICE);
 		int type = telephony.getSimState();
 		Log.i(TAG, "current devices type:" + type);
+		//没有SIP卡或者无法判断设备默认不给提供打电话功能
 		if (type == TelephonyManager.SIM_STATE_ABSENT || type == TelephonyManager.SIM_STATE_UNKNOWN ) {
 			return true;
 		} else {
