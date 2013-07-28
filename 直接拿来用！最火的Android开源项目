@@ -20,3 +20,17 @@ http://software.intel.com/zh-cn/blogs/2012/01/13/android-4
 
 android study
 http://blog.chengyunfeng.com/?cat=5&paged=16
+
+ListView 使用技巧
+http://blog.csdn.net/nxh_love/article/details/6620852
+1 listview中在设置了背景之后，会发生listview的上边和下边有黑色的阴影。，使用android:fadingEdge="none"  即可解决。
+2  自定义的listview，在拖动的时候出现一个空间黑色底色的情况，使用android:cacheColorHint=“#00000000”即可解决、
+3 默认会显示选中listview的item为橙黄底色，有时候我们需要去掉这种效果：只需要设置android:listSelector属性即可，例如：android:listSelector="#00000000"设置点击为透明色。
+
+
+总结4种线程中操作UI界面的方法
+http://blog.csdn.net/nxh_love/article/details/6668941
+
+
+
+
