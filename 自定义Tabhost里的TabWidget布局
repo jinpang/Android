@@ -1,0 +1,13 @@
+自定义Tabhost里的TabWidget布局 
+大家都知道Tabhost中Tabwidget的布局是图标在上，文字在下的垂直布局。比如通讯录的布局。
+这种布局在手机上的竖屏上用得最多，但在横屏则显得水平分布得不够紧凑。如何实现自定义的布局呢？
+
+要理解Tabwidget.
+
+TabWidget 理解： 
+1. TabWidget 为 horizontal 的 LinearLayout 
+2. 且 其包含的标签又是一个RelativeLayout 
+3. 每个标签RelativeLayout 里面包含2个View: TextView ImageView
+
+
+http://blog.csdn.net/wen0006/article/details/6180954
