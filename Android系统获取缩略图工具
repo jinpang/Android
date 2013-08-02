@@ -8,6 +8,7 @@ import java.io.OutputStream;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.media.ThumbnailUtils;
 
 /**
@@ -15,7 +16,7 @@ import android.media.ThumbnailUtils;
  *
  */
 public class ThumbnailUtil {
-  
+	
 	private final static String TAG = "ThumbnailUtil";
 	
 
@@ -172,7 +173,7 @@ public class ThumbnailUtil {
 		}
 		try {
 			OutputStream os = new FileOutputStream(dest);
-			if (bitmap.compress(Bitmap.CompressFormat.JPEG, 100, os)) {
+			if (bitmap.compress(Bitmap.CompressFormat.PNG, 100, os)) {
 				os.flush();
 				os.close();
 			}
@@ -181,6 +182,34 @@ public class ThumbnailUtil {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	/**
+	 * 根据指定大小保存图片
+	 * @param bitmap
+	 * @param dest
+	 * @param width
+	 * @param height
+	 */
+	public static void saveImage(Bitmap bitmap, String dest, int width, int height) {
+		if (bitmap == null || dest == null) {
+			return;
+		}
+		if(width <= 0 || height <= 0){
+			return;
+		}
+		int bmpWidth  = bitmap.getWidth();  
+		int bmpHeight = bitmap.getHeight();  
+		//缩放图片的尺寸  
+		float scaleWidth  = (float) width / bmpWidth;     //按固定大小缩放  width 写多大就多大 
+		float scaleHeight = (float) height / bmpHeight;   //按固定大小缩放  height 写多大就多大 
+		Matrix matrix = new Matrix();  
+		matrix.postScale(scaleWidth, scaleHeight);  
+		//产生缩放后的Bitmap对象  
+		Bitmap resizeBitmap = Bitmap.createBitmap(  
+		    bitmap, 0, 0, bmpWidth, bmpHeight, matrix, false);  
+		bitmap.recycle();
+		saveImage(resizeBitmap, dest);
 	}
 	
 }
