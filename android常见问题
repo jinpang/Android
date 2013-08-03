@@ -10,3 +10,7 @@ android:cacheColorHint=”#00000000″
 B、在代码中直接设定
 listView.setCacheColorHint(Color.TRANSPARENT);
 listview.setAlwaysDrawnWithCacheEnabled(true); 
+
+
+国外开发社区
+http://stackoverflow.com
