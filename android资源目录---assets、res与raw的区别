@@ -1,0 +1,10 @@
+android资源目录---assets、res与raw的区别(转)
+
+assets:用于存放需要打包到应用程序的静态文件，以便部署到设备中。与res/raw不同点在于，ASSETS支持任意深度的子目录。这些文件不会生成任何资源ID，必须使用/assets开始（不包含它）的相对路径名。
+res:用于存放应用程序的资源（如图标、GUI布局等），将被打包到编译后的Java中。不支持深度子目录
+res/menu:存放基于XML的菜单描述；
+res/raw:存放通用的文件， 该文件夹内的文件将不会被编译成二进制文件，按原样复制到设备上。
+res/values:存放字符串、尺寸值。
+res/xml: 存放通用的XML文件
+
+come from http://blog.csdn.net/hshm20517/article/details/6461890
