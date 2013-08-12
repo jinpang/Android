@@ -1,0 +1,18 @@
+android adb启动失败问题 adb server is out of date. killing... ADB server didn't ACK * failed to start daemon *
+错误如下--》
+adb server is out of date.  killing...  
+ADB server didn't ACK  
+* failed to start daemon *
+第一猜想，就是adb的端口号被占用了。
+解决方法如下：
+1.输入命令adb nodaemon server
+挷定端口号，但失败
+
+2.输入命令netstat -ano | findstr "5037" 
+查看端口号被谁占用了
+
+3.打开”任务管理器“，接下来一步步点击 进程-->查看-->选择列   
+看到PID(进程标识符)把它前面的对号勾上。点击“确定”按钮返回“任务管理器”主界面
+此时我们根据PID区查找之前的9056进程，点击右键然后“结束进程”就ok了，再启动adb。
+
+转自：http://www.cnblogs.com/cuixiaodong427/archive/2013/04/20/3032106.html
