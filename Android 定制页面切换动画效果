@@ -1,0 +1,77 @@
+一、页面动画切换API:void overridePendingTransition(int enterAnim, int exitAnim);
+
+在Android2.0之后谷歌添加了页面动画切换API: void overridePendingTransition(int enterAnim, int exitAnim);一般在startActivity(Intent) 或finis()后面调用。enterAnim为要进入页面的动画资源号exitAnim为要退出页面的动画资源号
+
+ 
+二、系统资源中有很多预定义动画可以直接使用，例如：
+
+实现淡入淡出的效果
+overridePendingTransition(android.R.anim.fade_in,android.R.anim.fade_out);
+
+由左向右滑入的效果
+overridePendingTransition(android.R.anim.slide_in_left,android.R.anim.slide_out_right);
+
+ 
+
+三、自定义页面切换动画
+
+自定义简单的方法是，将系统中预定义的动画复制到本地程序资源文件夹，然后简单修改效果，就是新的自定义动画啦。至于为什么要自定义动画，原因就很多了，比如我遇到一种情况：芯片性能不是很强大，运行系统由左向右划入的效果不佳，于是想重新定义一个简单的淡入淡出动画(系统预设的淡入淡出动画在芯片上运行慢)。所以我就讲系统预设的淡入淡出动画复制到本地资源文件夹，调整到最适合自家芯片运行的值(最佳效果)。淡然啦，不能只顾自己的程序运行流畅，我调整后的最佳版本把系统预设的覆盖掉，这样所有的页面切换就流畅啦。哈哈，多废话啦。
+
+如何自定呢。在res下新建anim文件夹,新建myFadeIn.xml文件 
+ <?xml version="1.0" encoding="utf-8"?>
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+android:interpolator="@android:anim/decelerate_interpolator">
+<scale android:fromXScale="2.5" android:toXScale="1.0" 
+android:fromYScale="2.5" android:toYScale="1.0"
+android:pivotX="50%p" android:pivotY="50%p"
+android:duration="@android:integer/config_mediumAnimTime" />
+</set>
+调用还是一样的overridePendingTransition(R.anim.myFadeIn, R.anim.myFadeOut); myFadeOut.xml类似过程定义一下即可。
+
+ 
+
+四、系统预设页面动画切换的修改
+
+--预设动画的修改，位置frameworks\base\core\res\res\anim\ 调整一下动画适合你的平台。
+Theme定义：res/values/themes.xml
+Style定义：res/values/styles.xml
+Animation定义：
+<!-- Standard animations for a full-screen window or activity. -->
+    <style name="Animation.Activity">
+        <item name="activityOpenEnterAnimation">@anim/activity_open_enter</item>
+        <item name="activityOpenExitAnimation">@anim/activity_open_exit</item>
+        <item name="activityCloseEnterAnimation">@anim/activity_close_enter</item>
+        <item name="activityCloseExitAnimation">@anim/activity_close_exit</item>
+
+
+        <item name="taskOpenEnterAnimation">@anim/activity_open_enter</item>
+        <item name="taskOpenExitAnimation">@anim/activity_open_exit</item>
+        <item name="taskCloseEnterAnimation">@anim/activity_close_enter</item>
+        <item name="taskCloseExitAnimation">@anim/activity_close_exit</item>
+  
+        <item name="taskToFrontEnterAnimation">@anim/activity_open_enter</item>
+        <item name="taskToFrontExitAnimation">@anim/activity_open_exit</item>
+        <item name="taskToBackEnterAnimation">@anim/activity_close_enter</item>
+        <item name="taskToBackExitAnimation">@anim/activity_close_exit</item>
+        
+        <item name="wallpaperOpenEnterAnimation">@anim/wallpaper_open_enter</item>
+        <item name="wallpaperOpenExitAnimation">@anim/wallpaper_open_exit</item>
+        <item name="wallpaperCloseEnterAnimation">@anim/wallpaper_close_enter</item>
+        <item name="wallpaperCloseExitAnimation">@anim/wallpaper_close_exit</item>
+
+
+        <item name="wallpaperIntraOpenEnterAnimation">@anim/wallpaper_intra_open_enter</item>
+        <item name="wallpaperIntraOpenExitAnimation">@anim/wallpaper_intra_open_exit</item>
+        <item name="wallpaperIntraCloseEnterAnimation">@anim/wallpaper_intra_close_enter</item>
+        <item name="wallpaperIntraCloseExitAnimation">@anim/wallpaper_intra_close_exit</item>
+
+
+        <item name="fragmentOpenEnterAnimation">@animator/fragment_open_enter</item>
+        <item name="fragmentOpenExitAnimation">@animator/fragment_open_exit</item>
+        <item name="fragmentCloseEnterAnimation">@animator/fragment_close_enter</item>
+        <item name="fragmentCloseExitAnimation">@animator/fragment_close_exit</item>
+        <item name="fragmentFadeEnterAnimation">@animator/fragment_fade_enter</item>
+        <item name="fragmentFadeExitAnimation">@animator/fragment_fade_exit</item>
+    </style>
+    
+come from http://blog.csdn.net/shareviews/article/details/7873296    
