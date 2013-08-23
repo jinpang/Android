@@ -1,0 +1,29 @@
+在Android系统中如何给应用增加分享功能，怎样将应用加入系统的分享选择列表？ 
+
+Intent.createChooser()方法用来弹出系统分享列表。
+
+查看Intent对应的组件是否存在，可查看Android判断Intent是否存在，是否可用
+
+1、应用增加分享功能
+
+public static void shareText(Context context, String title, String text) {
+    Intent intent = new Intent(Intent.ACTION_SEND);
+    intent.setType("text/plain");
+    intent.putExtra(Intent.EXTRA_SUBJECT, title);
+    intent.putExtra(Intent.EXTRA_TEXT, text);
+    context.startActivity(Intent.createChooser(intent, title));
+}
+PS：上面的代码为分享文本，若想分享图片信息需要设置setType为“image/*”，传递一个类型为Uri的参数Intent.EXTRA_STREAM。
+
+2、应用加入系统分享列表
+只需在AndroidManifest.xml中加入以下代码：
+
+<activity android:name=".SharePage" android:label="分享到微博">
+    <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="image/*" />
+    </intent-filter>
+</activity>
+
+来自这里：http://orgcent.com/android-app-intent-share-list/
