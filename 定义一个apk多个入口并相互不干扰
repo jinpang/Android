@@ -1,0 +1,43 @@
+定义一个apk多个入口并相互不干扰
+http://www.oschina.net/question/195301_32201
+安装一个Apk在程序管理中出现多个图标，只要给相应的Activity增加intent-filter即可。
+例如：
+<ativity android:name="A1" 
+         android:label="A1" 
+         android:label="@string/album_app_name1">  
+    <intent-filter>  
+        <action android:name="android.intent.action.MAIN" />  
+        <category android:name="android.intent.category.LAUNCHER" />  
+    </intent-filter>  
+</activity> 
+<activity android:name="A2" 
+          android:label="A2" 
+          android:label="@string/album_app_name2">  
+    <intent-filter>  
+        <action android:name="android.intent.action.MAIN" />  
+        <category android:name="android.intent.category.LAUNCHER" />  
+    </intent-filter>  
+</activity> 
+上面就可以实现一个apk两个入口，但有个小问题就是他们会相互干扰，为了不相互干扰，在activity属性中还要添加一个参数taskAffinity
+（每个activity都其各自的任务，每个任务都有不同的亲缘性(affinity)。
+如下：
+<ativity android:name="A1" 
+         android:label="A1" 
+         android:label="@string/album_app_name1"
+         android:taskAffinity="A1">  
+    <intent-filter>  
+        <action android:name="android.intent.action.MAIN" />  
+        <category android:name="android.intent.category.LAUNCHER" />  
+    </intent-filter>  
+</activity> 
+<activity android:name="A2" 
+          android:label="A2" 
+          android:label="@string/album_app_name2"
+          android:taskAffinity="A2">  
+    <intent-filter>  
+        <action android:name="android.intent.action.MAIN" />  
+        <category android:name="android.intent.category.LAUNCHER" />  
+    </intent-filter>  
+</activity> 
+
+
