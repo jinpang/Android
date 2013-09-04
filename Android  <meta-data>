@@ -1,0 +1,58 @@
+Android  <meta-data>
+
+在AndroidManifest.xml中，<meta-data>元素可以作为子元素，被包含在<activity>、<application> 、<service>和<receiver>元素中，但
+不同的父元素，在应用时读取的方法也不同。
+1 ：在Activity的应用。
+    xml代码段：
+   <activity...>
+       <meta-data android:name="myMsg" android:value="hello my activity"></meta-data>
+    </activity>
+   
+    java代码段：
+   ActivityInfo info=this.getPackageManager()
+                          .getActivityInfo(getComponentName(),
+                          PackageManager.GET_META_DATA);
+    String msg=info.metaData.getString("myMsg");
+    System.out.println("myMsg:"+msg);
+ 
+一个组件元素能够包含任意数量的meta-data子元素。它们所有的值都会被收集在Bundle对象中并且使其可以作为组件的 PackageItemInfo.metaData 字段。一般的值可以通过value属性来指定，但是如果要指定一个资源id作为一个值，那么就要用resource属性来代替。例如：下面的代码就是指定存储在@string/kangaroo 资源中的zoo名字。<meta-data android:name="zoo" android:value="@string/kangaroo" />另一方面，利用resource属性将指定zoo的资源id号，并不是存储在资源中的资源值。<meta-data android:name="zoo" android:resource="@string/kangaroo" />当要给组件提供多个复杂的数据时，在这里并不推荐使用多重meta-data元素，推荐你存储这些数据在一个资源文件中并且利用resource属性来通知它的id给组件。
+
+2：在application的应用。
+   xml代码段：
+  <application...>
+       <meta-data android:value="hello my application" android:name="myMsg"></meta-data>
+   </application>
+  
+   java代码段：
+    ApplicationInfo appInfo = this.getPackageManager()
+                                  .getApplicationInfo(getPackageName(),
+                          PackageManager.GET_META_DATA);
+    String msg=appInfo.metaData.getString("myMsg");
+    System.out.println("myMsg:"+msg);
+3：在service的应用。
+   xml代码段：
+   <service android:name="MetaDataService">
+      <meta-data android:value="hello my service" android:name="myMsg"></meta-data>
+   </service>
+   java代码段：
+   ComponentName cn=new ComponentName(this, MetaDataService.class);
+   ServiceInfo info=this.getPackageManager()
+                        .getServiceInfo(cn, PackageManager.GET_META_DATA);
+    String msg=info.metaData.getString("myMsg");
+    System.out.println("myMsg:"+msg);
+4: 在receiver的应用。
+   xml代码段:
+    <receiver android:name="MetaDataReceiver">
+            <meta-data android:value="hello my receiver" android:name="myMsg"></meta-data>
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE"></action>
+            </intent-filter>
+    </receiver>
+   java代码段：
+    ComponentName cn=new ComponentName(context, MetaDataReceiver.class);
+    ActivityInfo info=context.getPackageManager()
+                             .getReceiverInfo(cn, PackageManager.GET_META_DATA);
+    String msg=info.metaData.getString("myMsg");
+    System.out.println("myMsg:"+msg);
+    
+come from http://blog.sina.com.cn/s/blog_74b91ee00100yu0h.html
