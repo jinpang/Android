@@ -1,0 +1,218 @@
+Android 创建和删除快捷方式以及判断是否有快捷方式 
+转：http://blog.csdn.net/lonely_fireworks/article/details/7964183
+
+
+Launcher为了应用程序能够定制自己的快捷图标，就注册了一个BroadcastReceiver专门接收其他应用程序发来的快捷图标定制信息。所以只需要根据该BroadcastReceiver构造出相对应的Intent并装入我们的定制信息，最后调用sendBroadcast方法就可以创建一个快捷图标了。既然可以创建快捷方式也就可以删除快捷方式，以及判断快捷方式是否存在。 
+如何向这个 BroadcastReceiver 发送广播，设置如下：
+创建快捷方式必须要有权限；
+创建快捷方式的广播的Intent的action设置com.android.launcher.action.INSTALL_SHORTCUT
+删除快捷方式的广播的Intent的action设置com.android.launcher.action.UNINSTALL_SHORTCUT
+设置快捷方式的图片和名称等信息放在Intent中；
+快捷图标的信息则是以附加信息的形式存储在广播出去的Intent对象中的，包括有图标、显示的名称以及用来启动目标组件的Intent这三种信息。我们可以通过putExtra的重载方法，通过指定相应的键值，将这些信息放到附加信息的Bundle对象中。
+
+下面是快捷方式的工具类，可以创建快捷方式，删除快捷方式等方法。
+
+
+[java] view plaincopyprint?/** 
+ * @author wangli 快捷方式工具类 
+ */  
+public class ShortCutUtils {  
+    /** 
+     * 添加当前应用的桌面快捷方式 
+     *  
+     * @param cx 
+     */  
+    public static void addShortcut(Context cx) {  
+        Intent shortcut = new Intent(  
+                "com.android.launcher.action.INSTALL_SHORTCUT");  
+  
+        Intent shortcutIntent = cx.getPackageManager()  
+                .getLaunchIntentForPackage(cx.getPackageName());  
+        shortcut.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);  
+        // 获取当前应用名称   
+        String title = null;  
+        try {  
+            final PackageManager pm = cx.getPackageManager();  
+            title = pm.getApplicationLabel(  
+                    pm.getApplicationInfo(cx.getPackageName(),  
+                            PackageManager.GET_META_DATA)).toString();  
+        } catch (Exception e) {  
+        }  
+        // 快捷方式名称   
+        shortcut.putExtra(Intent.EXTRA_SHORTCUT_NAME, title);  
+        // 不允许重复创建（不一定有效）   
+        shortcut.putExtra("duplicate", false);  
+        // 快捷方式的图标   
+        Parcelable iconResource = Intent.ShortcutIconResource.fromContext(cx,  
+                R.drawable.ic_launcher);  
+        shortcut.putExtra(Intent.EXTRA_SHORTCUT_ICON_RESOURCE, iconResource);  
+  
+        cx.sendBroadcast(shortcut);  
+    }  
+  
+    /** 
+     * 删除当前应用的桌面快捷方式 
+     *  
+     * @param cx 
+     */  
+    public static void delShortcut(Context cx) {  
+        Intent shortcut = new Intent(  
+                "com.android.launcher.action.UNINSTALL_SHORTCUT");  
+  
+        // 获取当前应用名称   
+        String title = null;  
+        try {  
+            final PackageManager pm = cx.getPackageManager();  
+            title = pm.getApplicationLabel(  
+                    pm.getApplicationInfo(cx.getPackageName(),  
+                            PackageManager.GET_META_DATA)).toString();  
+        } catch (Exception e) {  
+        }  
+        // 快捷方式名称   
+        shortcut.putExtra(Intent.EXTRA_SHORTCUT_NAME, title);  
+        Intent shortcutIntent = cx.getPackageManager()  
+                .getLaunchIntentForPackage(cx.getPackageName());  
+        shortcut.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);  
+        cx.sendBroadcast(shortcut);  
+    }  
+  
+    /** 
+     * 判断当前应用在桌面是否有桌面快捷方式 
+     *  
+     * @param cx 
+     */  
+    public static boolean hasShortcut(Context cx) {  
+        boolean result = false;  
+        String title = null;  
+        try {  
+            final PackageManager pm = cx.getPackageManager();  
+            title = pm.getApplicationLabel(  
+                    pm.getApplicationInfo(cx.getPackageName(),  
+                            PackageManager.GET_META_DATA)).toString();  
+        } catch (Exception e) {  
+        }  
+  
+        final String uriStr;  
+        if (android.os.Build.VERSION.SDK_INT < 8) {  
+            uriStr = "content://com.android.launcher.settings/favorites?notify=true";  
+        } else {  
+            uriStr = "content://com.android.launcher2.settings/favorites?notify=true";  
+        }  
+        final Uri CONTENT_URI = Uri.parse(uriStr);  
+        final Cursor c = cx.getContentResolver().query(CONTENT_URI, null,  
+                "title=?", new String[] { title }, null);  
+        if (c != null && c.getCount() > 0) {  
+            result = true;  
+        }  
+        return result;  
+    }  
+}  
+
+/**
+ * @author wangli 快捷方式工具类
+ */
+public class ShortCutUtils {
+	/**
+	 * 添加当前应用的桌面快捷方式
+	 * 
+	 * @param cx
+	 */
+	public static void addShortcut(Context cx) {
+		Intent shortcut = new Intent(
+				"com.android.launcher.action.INSTALL_SHORTCUT");
+
+		Intent shortcutIntent = cx.getPackageManager()
+				.getLaunchIntentForPackage(cx.getPackageName());
+		shortcut.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
+		// 获取当前应用名称
+		String title = null;
+		try {
+			final PackageManager pm = cx.getPackageManager();
+			title = pm.getApplicationLabel(
+					pm.getApplicationInfo(cx.getPackageName(),
+							PackageManager.GET_META_DATA)).toString();
+		} catch (Exception e) {
+		}
+		// 快捷方式名称
+		shortcut.putExtra(Intent.EXTRA_SHORTCUT_NAME, title);
+		// 不允许重复创建（不一定有效）
+		shortcut.putExtra("duplicate", false);
+		// 快捷方式的图标
+		Parcelable iconResource = Intent.ShortcutIconResource.fromContext(cx,
+				R.drawable.ic_launcher);
+		shortcut.putExtra(Intent.EXTRA_SHORTCUT_ICON_RESOURCE, iconResource);
+
+		cx.sendBroadcast(shortcut);
+	}
+
+	/**
+	 * 删除当前应用的桌面快捷方式
+	 * 
+	 * @param cx
+	 */
+	public static void delShortcut(Context cx) {
+		Intent shortcut = new Intent(
+				"com.android.launcher.action.UNINSTALL_SHORTCUT");
+
+		// 获取当前应用名称
+		String title = null;
+		try {
+			final PackageManager pm = cx.getPackageManager();
+			title = pm.getApplicationLabel(
+					pm.getApplicationInfo(cx.getPackageName(),
+							PackageManager.GET_META_DATA)).toString();
+		} catch (Exception e) {
+		}
+		// 快捷方式名称
+		shortcut.putExtra(Intent.EXTRA_SHORTCUT_NAME, title);
+		Intent shortcutIntent = cx.getPackageManager()
+				.getLaunchIntentForPackage(cx.getPackageName());
+		shortcut.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
+		cx.sendBroadcast(shortcut);
+	}
+
+	/**
+	 * 判断当前应用在桌面是否有桌面快捷方式
+	 * 
+	 * @param cx
+	 */
+	public static boolean hasShortcut(Context cx) {
+		boolean result = false;
+		String title = null;
+		try {
+			final PackageManager pm = cx.getPackageManager();
+			title = pm.getApplicationLabel(
+					pm.getApplicationInfo(cx.getPackageName(),
+							PackageManager.GET_META_DATA)).toString();
+		} catch (Exception e) {
+		}
+
+		final String uriStr;
+		if (android.os.Build.VERSION.SDK_INT < 8) {
+			uriStr = "content://com.android.launcher.settings/favorites?notify=true";
+		} else {
+			uriStr = "content://com.android.launcher2.settings/favorites?notify=true";
+		}
+		final Uri CONTENT_URI = Uri.parse(uriStr);
+		final Cursor c = cx.getContentResolver().query(CONTENT_URI, null,
+				"title=?", new String[] { title }, null);
+		if (c != null && c.getCount() > 0) {
+			result = true;
+		}
+		return result;
+	}
+}
+其中涉及的3个权限 
+
+
+[html] view plaincopyprint?<uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />  
+<uses-permission android:name="com.android.launcher.permission.UNINSTALL_SHORTCUT" />  
+<uses-permission android:name="com.android.launcher.permission.READ_SETTINGS" />  
+
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
+    <uses-permission android:name="com.android.launcher.permission.UNINSTALL_SHORTCUT" />
+    <uses-permission android:name="com.android.launcher.permission.READ_SETTINGS" />
+通过这个类，你就可以轻而易举的为应用程序添加快捷图标。
+
+
+
