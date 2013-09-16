@@ -20,7 +20,7 @@ Constant Value: "android.settings.APPLICATION_DETAILS_SETTINGS"
 
 就是说，我们只要以android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS作为Action；“package:应用程序的包名”作为URI，就可以用startActivity启动应用程序信息界面了。代码如下：
 
-view plainIntent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);   
+intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);   
 Uri uri = Uri.fromParts(SCHEME, packageName, null);   
 intent.setData(uri);   
 startActivity(intent);   
@@ -50,7 +50,8 @@ startActivity(i);
  
  
 综上，通用的调用“应用程序信息”的代码如下：
-view plainprivate static final String SCHEME = "package";   
+
+static final String SCHEME = "package";   
 /**  
  * 调用系统InstalledAppDetails界面所需的Extra名称(用于Android 2.1及之前版本)  
  */   
@@ -78,9 +79,9 @@ private static final String APP_DETAILS_CLASS_NAME = "com.android.settings.Insta
  */   
 public static void showInstalledAppDetails(Context context, String packageName) {   
     Intent intent = new Intent();   
-    final int apiLevel = Build.VERSION.SDK_INT;   
+    final int apiLevel = android.os.Build.VERSION.SDK_INT;   
     if (apiLevel >= 9) { // 2.3（ApiLevel 9）以上，使用SDK提供的接口   
-        intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);   
+        intent.setAction(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);   
         Uri uri = Uri.fromParts(SCHEME, packageName, null);   
         intent.setData(uri);   
     } else { // 2.3以下，使用非公开的接口（查看InstalledAppDetails源码）   
