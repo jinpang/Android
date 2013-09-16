@@ -1,0 +1,98 @@
+调用Android系统“应用程序信息（Application Info）”界面 
+转：http://blog.csdn.net/xiaodongvtion/article/details/7465785
+
+
+“Android系统设置->应用程序->管理应用程序”列表下，列出了系统已安装的应用程序。选择其中一个程序，则进入“应用程序信 息（Application Info）”界面。这个界面显示了程序名称、版本、存储、权限等信息，并有卸载、停止、清除缓存等按钮，可谓功能不少。如果在编写相关程序时（比如任务管 理器）可以调用这个面板，自然提供了很大的方便。那么如何实现呢？
+
+在最新的Android SDK 2.3(API Level 9)中，提供了这样的接口。在文档路径
+
+docs/reference/android/provider/Settings.html#ACTION_APPLICATION_DETAILS_SETTINGS
+
+下，有这样的描述：
+
+public static final String ACTION_APPLICATION_DETAILS_SETTINGS    Since: API Level 9
+
+Activity Action: Show screen of details about a particular application.
+In some cases, a matching Activity may not exist, so ensure you safeguard against this.
+Input: The Intent's data URI specifies the application package name to be shown, with the "package" scheme. That is "package:com.my.app".
+Output: Nothing.
+Constant Value: "android.settings.APPLICATION_DETAILS_SETTINGS"
+
+就是说，我们只要以android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS作为Action；“package:应用程序的包名”作为URI，就可以用startActivity启动应用程序信息界面了。代码如下：
+
+view plainIntent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);   
+Uri uri = Uri.fromParts(SCHEME, packageName, null);   
+intent.setData(uri);   
+startActivity(intent);   
+ 
+但是，在Android 2.3之前的版本，并没有公开相关的接口。
+通过查看系统设置platform/packages/apps/Settings.git程序的源码，可以发现应用程序信息界面为InstalledAppDetails。
+在这里(2.1)还有这里(2.2)，我们可以分别看到Android2.1和Android2.2的应用管理程序（ManageApplications.java）是如何启动InstalledAppDetails的。
+view plain// utility method used to start sub activity   
+private void startApplicationDetailsActivity() {   
+    // Create intent to start new activity   
+    Intent intent = new Intent(Intent.ACTION_VIEW);   
+    intent.setClass(this, InstalledAppDetails.class);   
+    intent.putExtra(APP_PKG_NAME, mCurrentPkgName);   
+    // start new activity to display extended information   
+    startActivityForResult(intent, INSTALLED_APP_DETAILS);   
+}   
+
+但是常量APP_PKG_NAME的定义并不相同。
+2.2中定义为"pkg"，2.1中定义为"com.android.settings.ApplicationPkgName"
+那么，对于2.1及以下版本，我们可以这样调用InstalledAppDetails：
+view plainIntent i = new Intent(Intent.ACTION_VIEW);                   
+i.setClassName("com.android.settings","com.android.settings.InstalledAppDetails");   
+i.putExtra("com.android.settings.ApplicationPkgName", packageName);    
+startActivity(i);   
+
+对于2.2，只需替换上面putExtra的第一个参数为"pkg"
+ 
+ 
+综上，通用的调用“应用程序信息”的代码如下：
+view plainprivate static final String SCHEME = "package";   
+/**  
+ * 调用系统InstalledAppDetails界面所需的Extra名称(用于Android 2.1及之前版本)  
+ */   
+private static final String APP_PKG_NAME_21 = "com.android.settings.ApplicationPkgName";   
+/**  
+ * 调用系统InstalledAppDetails界面所需的Extra名称(用于Android 2.2)  
+ */   
+private static final String APP_PKG_NAME_22 = "pkg";   
+/**  
+ * InstalledAppDetails所在包名  
+ */   
+private static final String APP_DETAILS_PACKAGE_NAME = "com.android.settings";   
+/**  
+ * InstalledAppDetails类名  
+ */   
+private static final String APP_DETAILS_CLASS_NAME = "com.android.settings.InstalledAppDetails";   
+/**  
+ * 调用系统InstalledAppDetails界面显示已安装应用程序的详细信息。 对于Android 2.3（Api Level  
+ * 9）以上，使用SDK提供的接口； 2.3以下，使用非公开的接口（查看InstalledAppDetails源码）。  
+ *   
+ * @param context  
+ *   
+ * @param packageName  
+ *            应用程序的包名  
+ */   
+public static void showInstalledAppDetails(Context context, String packageName) {   
+    Intent intent = new Intent();   
+    final int apiLevel = Build.VERSION.SDK_INT;   
+    if (apiLevel >= 9) { // 2.3（ApiLevel 9）以上，使用SDK提供的接口   
+        intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);   
+        Uri uri = Uri.fromParts(SCHEME, packageName, null);   
+        intent.setData(uri);   
+    } else { // 2.3以下，使用非公开的接口（查看InstalledAppDetails源码）   
+        // 2.2和2.1中，InstalledAppDetails使用的APP_PKG_NAME不同。   
+        final String appPkgName = (apiLevel == 8 ? APP_PKG_NAME_22   
+                : APP_PKG_NAME_21);   
+        intent.setAction(Intent.ACTION_VIEW);   
+        intent.setClassName(APP_DETAILS_PACKAGE_NAME,   
+                APP_DETAILS_CLASS_NAME);   
+        intent.putExtra(appPkgName, packageName);   
+    }   
+    context.startActivity(intent);   
+}  
+
+
