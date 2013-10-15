@@ -1,0 +1,512 @@
+使用ANT打包Android应用
+
+通常我们习惯用eclipse来开发Android程序，它会自动帮我们打包当前的应用程序。如果在Navigator视图下，我们可以看到以下几个文件：
+
+
+在上图中，com包放置的是我们的class文件，classes.dex是class文件经过转换后的可以在dalvik上跑的精简类文件，resources.ap_是经过打包的资源文件，ant.apk就是最终的打包文件。
+
+使用ANT来对应用打包，一般会经过以下几个步骤：
+
+1.用aapt命令生成R.java文件
+
+2.用aidl命令生成相应java文件
+3.用javac命令编译java源文件生成class文件
+4.用dx.bat将class文件转换成classes.dex文件
+5.用aapt命令生成资源包文件resources.ap_
+6.用apkbuilder.bat打包资源和classes.dex文件,生成unsigned.apk
+7.用jarsinger命令对apk认证,生成signed.apk
+为了便于理解和记忆，下面来用一张流程图来说明以上的几个过程：
+
+
+以上就是整体的流程，下面我们就对其每个部分进行做出详细讲解，把每一个步骤都弄清楚了。
+
+我们需要先熟悉一下每一个步骤所使用到的命令：
+
+1.aapt（Android Asset Packaging Tool）命令，根据资源文件生成R.java文件
+
+
+参数说明：
+
+-f  强制覆盖已存在的文件。
+-m  在-J指定的位置下自动生成相应的包的目录。
+-J  指定R.java文件生成的目录。
+-S  指定资源目录。
+-M  指定清单文件。
+-I  引入类库。
+注意，我们当前所在的位置是ant项目根目录，所以必要时需要输入很多关于命令的路径，以下示例也是一样。
+
+2.aidl（Android Interface Definition Language）命令，根据.aidl定义文件生成java文件
+
+
+上面的示例所在位置为com/scott/ant下，根据包中的Person.aidl文件，在gen对应的目录中生成Person.java文件，示例中只是处理单一文件，下文中会讲述如何处理目录中的多个aidl文件。
+
+3.javac（Java Compiler）命令，根据源文件生成对应的class文件
+
+
+参数说明：
+
+-d <目录>      指定存放生成的类文件的位置
+-bootclasspath <路径>     覆盖引导类文件的位置
+
+示例中并没有考虑到引用类路径下面的类库，复杂的情况会在稍后遇到的。
+
+4.dx命令，将class文件转换成.dex文件
+
+
+以上示例是将bin目录下的class文件转换成classes.dex文件，输出到bin目录，我们也许会用到第三方类库，等一会就会看到。
+
+5.aapt将资源文件打包
+
+
+参数说明：
+
+-f 强制覆盖
+
+-M 指定Manifest文件
+
+-S 指定资源目录
+
+-A 指定资产目录
+
+-I 指定引入的类库
+
+-F 指定要生成的包
+
+6.apkbuilder命令，根据classes.dex文件和resources.ap_生成为签证的apk包
+
+
+参数说明：
+
+-rf 参照源文件的目录的结构
+
+7.jarsigner命令，对上面生成的apk包进行签证
+
+
+在签证的过程中，需要使用到证书文件，需要注意的是最后的release是证书的别名，关于如何创建证书，请看下图：
+
+
+
+当然也可以在eclipse里使用ADT提供的图形界面完成以上步骤，选中项目，点击右键，“Android Tools=>Export Signed Application Package”，然后再其中的Keystore selection环节选择“Create new keystore”，然后按照提示填写信息就可以了。
+
+以上是我们使用到的命令，接下来我们就该来分析一下ANT所必须的build.xml：
+
+首先我们需要定义大量的变量属性，用来表示使用到的路径、目录等，如下：
+
+01
+<project name="ant" default="release">
+02
+    <!-- ANT环境变量 -->
+03
+    <property environment="env" />
+04
+    <!-- 应用名称 -->
+05
+    <property name="appName" value="${ant.project.name}"/>
+06
+    <!-- SDK目录(获取操作系统环境变量ANDROID_SDK_HOME的值) -->
+07
+    <property name="sdk-folder" value="${env.ANDROID_SDK_HOME}" />
+08
+    <!-- SDK指定平台目录 -->
+09
+    <property name="sdk-platform-folder" value="${sdk-folder}/platforms/android-8"/>
+10
+    <!-- SDK中tools目录 -->
+11
+    <property name="sdk-tools" value="${sdk-folder}/tools" />
+12
+    <!-- SDK指定平台中tools目录 -->
+13
+    <property name="sdk-platform-tools" value="${sdk-platform-folder}/tools" />
+14
+ 
+15
+    <!-- 使用到的命令(当前系统为windows,如果系统为linux,可将.bat文件替换成相对应的命令) -->
+16
+    <property name="aapt" value="${sdk-platform-tools}/aapt" />
+17
+    <property name="aidl" value="${sdk-platform-tools}/aidl" />
+18
+    <property name="dx" value="${sdk-platform-tools}/dx.bat" />
+19
+    <property name="apkbuilder" value="${sdk-tools}/apkbuilder.bat" />
+20
+    <property name="jarsigner" value="${env.JAVA_HOME}/bin/jarsigner" />
+21
+     
+22
+    <!-- 编译需要的jar; 如果项目使用到地图服务则需要maps.jar -->
+23
+    <property name="android-jar" value="${sdk-platform-folder}/android.jar" />
+24
+    <property name="android-maps-jar" value="${sdk-folder}/add-ons/addon_google_apis_google_inc_8/libs/maps.jar"/>
+25
+     
+26
+    <!-- 编译aidl文件所需的预处理框架文件framework.aidl -->
+27
+    <property name="framework-aidl" value="${sdk-platform-folder}/framework.aidl" />
+28
+ 
+29
+    <!-- 生成R文件的相对目录 -->
+30
+    <property name="outdir-gen" value="gen" />
+31
+    <!-- 编译后的文件放置目录 -->
+32
+    <property name="outdir-bin" value="bin" />
+33
+     
+34
+    <!-- 清单文件 -->
+35
+    <property name="manifest-xml" value="AndroidManifest.xml" />
+36
+    <!-- 源文件目录 -->
+37
+    <property name="resource-dir" value="res" />
+38
+    <property name="asset-dir" value="assets" />
+39
+    <!-- java源文件目录 -->
+40
+    <property name="srcdir" value="src" />
+41
+    <property name="srcdir-ospath" value="${basedir}/${srcdir}" />
+42
+    <!-- 外部类库所在目录 -->
+43
+    <property name="external-lib" value="lib" />
+44
+    <property name="external-lib-ospath" value="${basedir}/${external-lib}" />
+45
+ 
+46
+    <!-- 生成class目录 -->
+47
+    <property name="outdir-classes" value="${outdir-bin}" />
+48
+    <property name="outdir-classes-ospath" value="${basedir}/${outdir-classes}" />
+49
+ 
+50
+    <!-- classes.dex相关变量 -->
+51
+    <property name="dex-file" value="classes.dex" />
+52
+    <property name="dex-path" value="${outdir-bin}/${dex-file}" />
+53
+    <property name="dex-ospath" value="${basedir}/${dex-path}" />
+54
+ 
+55
+    <!-- 经过aapt生成的资源包文件 -->
+56
+    <property name="resources-package" value="${outdir-bin}/resources.ap_" />
+57
+    <property name="resources-package-ospath" value="${basedir}/${resources-package}" />
+58
+     
+59
+    <!-- 未认证apk包 -->
+60
+    <property name="out-unsigned-package" value="${outdir-bin}/${appName}-unsigned.apk" />
+61
+    <property name="out-unsigned-package-ospath" value="${basedir}/${out-unsigned-package}" />
+62
+     
+63
+    <!-- 证书文件 -->
+64
+    <property name="keystore-file" value="${basedir}/release.keystore" />
+65
+     
+66
+    <!-- 已认证apk包 -->
+67
+    <property name="out-signed-package" value="${outdir-bin}/${appName}.apk" />
+68
+    <property name="out-signed-package-ospath" value="${basedir}/${out-signed-package}" />
+69
+        ...
+70
+</project>
+然后，我们分步骤来进行，首先是初始化：
+1
+<!-- 初始化工作 -->
+2
+    <target name="init">
+3
+        <echo>Initializing all output directories...</echo>
+4
+        <delete dir="${outdir-bin}" />
+5
+        <mkdir dir="${outdir-bin}" />
+6
+        <mkdir dir="${outdir-classes}" />
+7
+    </target>
+其次是生成R.java文件：
+01
+<!-- 根据工程中的资源文件生成R.java文件  -->
+02
+    <target name="gen-R" depends="init">
+03
+        <echo>Generating R.java from the resources...</echo>
+04
+        <exec executable="${aapt}" failonerror="true">
+05
+            <arg value="package" />
+06
+            <arg value="-f" />
+07
+            <arg value="-m" />
+08
+            <arg value="-J" />
+09
+            <arg value="${outdir-gen}" />
+10
+            <arg value="-S" />
+11
+            <arg value="${resource-dir}" />
+12
+            <arg value="-M" />
+13
+            <arg value="${manifest-xml}" />
+14
+            <arg value="-I" />
+15
+            <arg value="${android-jar}" />
+16
+        </exec>
+17
+    </target>
+接着是aidl生成java源文件：
+01
+<!-- 编译aidl文件 -->
+02
+    <target name="aidl" depends="gen-R">
+03
+        <echo>Compiling .aidl into java files...</echo>
+04
+        <apply executable="${aidl}" failonerror="true">
+05
+            <!-- 指定预处理文件 -->
+06
+            <arg value="-p${framework-aidl}"/>
+07
+            <!-- aidl声明的目录 -->
+08
+            <arg value="-I${srcdir}"/>
+09
+            <!-- 目标文件目录 -->
+10
+            <arg value="-o${outdir-gen}"/>
+11
+            <!-- 指定哪些文件需要编译 -->
+12
+            <fileset dir="${srcdir}">
+13
+                <include name="**/*.aidl"/>
+14
+            </fileset>
+15
+        </apply>
+16
+    </target>
+我们指定了一个framework.aidl，里面定义了很多android内置对象，然后我们指定了aidl所在目录和输出目录，组后指定编译后缀为aidl的文件。
+接下来是将源文件编译成class文件：
+
+01
+<!-- 将工程中的java源文件编译成class文件 -->
+02
+    <target name="compile" depends="aidl">
+03
+        <echo>Compiling java source code...</echo>
+04
+        <javac encoding="utf-8" target="1.5" srcdir="." destdir="${outdir-classes}" bootclasspath="${android-jar}">
+05
+            <classpath>
+06
+                <fileset dir="${external-lib}" includes="*.jar"/>
+07
+                <filelist>
+08
+                    <file name="${android-maps-jar}"/>
+09
+                </filelist>
+10
+            </classpath>
+11
+        </javac>
+12
+    </target>
+如果使用到了第三方类库，我们可以在classpath标签下配置。
+接着是将class文件转换成classes.dex：
+
+01
+<!-- 将.class文件转化成.dex文件 -->
+02
+    <target name="dex" depends="compile">
+03
+        <echo>Converting compiled files and external libraries into a .dex file...</echo>
+04
+        <exec executable="${dx}" failonerror="true">
+05
+            <arg value="--dex" />
+06
+            <!-- 输出文件 -->
+07
+            <arg value="--output=${dex-ospath}" />
+08
+            <!-- 要生成.dex文件的源classes和libraries -->
+09
+            <arg value="${outdir-classes-ospath}" />
+10
+            <arg value="${external-lib-ospath}"/>
+11
+        </exec>
+12
+    </target>
+就像上面的代码一样，如果使用到第三方类库，可以在最后一参数的形式追加进去。
+然后是将资源文件打包：
+
+01
+<!-- 将资源文件放进输出目录 -->
+02
+    <target name="package-res-and-assets">
+03
+        <echo>Packaging resources and assets...</echo>
+04
+        <exec executable="${aapt}" failonerror="true">
+05
+            <arg value="package" />
+06
+            <arg value="-f" />
+07
+            <arg value="-M" />
+08
+            <arg value="${manifest-xml}" />
+09
+            <arg value="-S" />
+10
+            <arg value="${resource-dir}" />
+11
+            <arg value="-A" />
+12
+            <arg value="${asset-dir}" />
+13
+            <arg value="-I" />
+14
+            <arg value="${android-jar}" />
+15
+            <arg value="-F" />
+16
+            <arg value="${resources-package}" />
+17
+        </exec>
+18
+    </target>
+接着是打包成未签证的apk包：
+01
+<!-- 打包成未签证的apk -->
+02
+    <target name="package" depends="dex, package-res-and-assets">
+03
+        <echo>Packaging unsigned apk for release...</echo>
+04
+        <exec executable="${apkbuilder}" failonerror="true">
+05
+            <arg value="${out-unsigned-package-ospath}" />
+06
+            <arg value="-u" />
+07
+            <arg value="-z" />
+08
+            <arg value="${resources-package-ospath}" />
+09
+            <arg value="-f" />
+10
+            <arg value="${dex-ospath}" />
+11
+            <arg value="-rf" />
+12
+            <arg value="${srcdir-ospath}" />
+13
+        </exec>
+14
+        <echo>It will need to be signed with jarsigner before being published.</echo>
+15
+    </target>
+然后是对apk签证：
+01
+<!-- 对apk进行签证 -->
+02
+    <target name="jarsigner" depends="package">
+03
+        <echo>Packaging signed apk for release...</echo>
+04
+        <exec executable="${jarsigner}" failonerror="true">
+05
+            <arg value="-keystore" />
+06
+            <arg value="${keystore-file}" />
+07
+            <arg value="-storepass" />
+08
+            <arg value="123456" />
+09
+            <arg value="-keypass" />
+10
+            <arg value="123456" />
+11
+            <arg value="-signedjar" />
+12
+            <arg value="${out-signed-package-ospath}" />
+13
+            <arg value="${out-unsigned-package-ospath}"/>
+14
+            <!-- 不要忘了证书的别名 -->
+15
+            <arg value="release"/>
+16
+        </exec>
+17
+    </target>
+最后发布：
+1
+<!-- 发布 -->
+2
+    <target name="release" depends="jarsigner">
+3
+        <!-- 删除未签证apk -->
+4
+        <delete file="${out-unsigned-package-ospath}"/>
+5
+        <echo>APK is released. path:${out-signed-package-ospath}</echo>
+6
+    </target>
+这样就完成了build.xml的编辑，eclipse继承了ANT，所以我们可以在eclipse中直接运行，也可以在代码中调用。
+
+首先我们需要下载ANT，然后配置相应的环境变量信息，最后我们这样调用：
+
+1
+Process p = Runtime.getRuntime().exec("ant.bat -buildfile d:/workspace/ant/build.xml");
+2
+InputStream is = p.getInputStream();
+3
+BufferedReader br = new BufferedReader(new InputStreamReader(is));
+4
+String line = null;
+5
+while ((line = br.readLine()) != null) {
+6
+    System.out.println(line);
+7
+}
+8
+System.out.println("SUCCESS.");
+全文完！
+
+原文出处：http://blog.csdn.net/liuhe688/article/details/6679879
