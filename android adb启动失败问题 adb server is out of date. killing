@@ -16,3 +16,14 @@ ADB server didn't ACK
 此时我们根据PID区查找之前的9056进程，点击右键然后“结束进程”就ok了，再启动adb。
 
 转自：http://www.cnblogs.com/cuixiaodong427/archive/2013/04/20/3032106.html
+
+
+当出现了:
+The connection to adb is down, and a servere error has occured.
+You must restart adb and Eclipse.
+Please ensure that adb is correctly located at 'E:\android\android-sdk-newest\android-sdk-windows\platform-tools\adb.exe' ....
+上面这样的错误时，解决步骤是：
+1、关闭Eclipse; 
+2、在任务管理器里，关闭adb.exe ,tadb.exe。
+OK
+
