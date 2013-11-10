@@ -1,0 +1,74 @@
+android中像素单位dp、px、pt、sp的比较
+dp(dip): device independent pixels(设备独立像素). 不同设备有不同的显示效果,这个和设备硬件有关，一般我们为了支持WVGA、HVGA和QVGA 推荐使用这个，不依赖像素。
+
+px: pixels(像素). 不同设备显示效果相同，一般我们HVGA代表320x480像素，这个用的比较多。
+
+pt: point，是一个标准的长度单位，1pt＝1/72英寸，用于印刷业，非常简单易用；
+
+sp: scaled pixels(放大像素). 主要用于字体显示best for textsize。
+
+由此，根据 google 的建议，TextView 的字号最好使用 sp 做单位，而且查看TextView的源码可知 Android 默认使用 sp 作为字号单位。
+
+
+还有, google代码里边所用的单位都是以px为默认单位的.
+
+
+apk的资源包中，当屏幕density=240时使用hdpi标签的资源
+
+当屏幕density=160时，使用mdpi标签的资源
+
+当屏幕density=120时，使用ldpi标签的资源。
+
+在每英寸160点的显示器上，1dp = 1px。
+
+
+下面是几种不同单位的相互转换.
+
+
+public static int dip2px(Context context, float dipValue){ 
+final float scale = context.getResources().getDisplayMetrics().density; 
+return (int)(dipValue * scale + 0.5f); 
+} 
+public static int px2dip(Context context, float pxValue){ 
+final float scale = context.getResource().getDisplayMetrics().density; 
+return (int)(pxValue / scale + 0.5f); 
+} 
+public static int dip2px(Context context, float dipValue){ 
+final float scale = context.getResources().getDisplayMetrics().density; 
+return (int)(dipValue * scale + 0.5f); 
+} 
+public static int px2dip(Context context, float pxValue){ 
+final float scale = context.getResource().getDisplayMetrics().density; 
+return (int)(pxValue / scale + 0.5f); 
+}
+
+下面说下如何获取分辨率:
+
+    在一个Activity的onCreate方法中，写入如下代码：
+        DisplayMetrics metric = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(metric);
+        int width = metric.widthPixels;  // 屏幕宽度（像素）
+        int height = metric.heightPixels;  // 屏幕高度（像素）
+        float density = metric.density;  // 屏幕密度（0.75 / 1.0 / 1.5）
+        int densityDpi = metric.densityDpi;  // 屏幕密度DPI（120 / 160 / 240）
+
+
+
+ 
+
+在 Android 中，  1pt 大概等于 2.22sp
+
+以上供参考，如果 UI 能够以 sp 为单位提供设计是最好的，如果设计中没有 sp的概念，则开发人员也可以通过适当的换算取近似值。
+
+过去，程序员通常以像素为单位设计计算机用户界面。例如，定义一个宽度为300像素的表单字段，列之间的间距为5个像素，图标大小为16×16像素 等。这样处理的问题在于，如果在一个每英寸点数（dpi）更高的新显示器上运行该程序，则用户界面会显得很小。在有些情况下，用户界面可能会小到难以看清 内容。与分辨率无关的度量单位可以解决这一问题。
+
+Android支持下列所有单位。
+px（像素）：屏幕上的点。
+in（英寸）：长度单位。
+mm（毫米）：长度单位。
+pt（磅）：1/72英寸。
+dp（与密度无关的像素）：一种基于屏幕密度的抽象单位。在每英寸160点的显示器上，1dp = 1px。
+dip：与dp相同，多用于android/ophone示例中。
+sp（与刻度无关的像素）：与dp类似，但是可以根据用户的字体大小首选项进行缩放。
+
+come from http://www.cnblogs.com/chiao/archive/2011/07/07/2100216.html
