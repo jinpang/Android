@@ -1,0 +1,593 @@
+Intent跳转到系统应用中的拨号界面、联系人界面、短信界面及其他 
+
+现在开发中的功能需要直接跳转到拨号、联系人、短信界面等等，查找了很多资料，自己整理了一下。
+
+
+
+
+         首先，我们先看拨号界面，代码如下：
+
+
+
+
+
+[java] view plaincopy
+01.Intent intent =new Intent();  
+02.            intent.setAction("android.intent.action.CALL_BUTTON");  
+03.            startActivity(intent);  
+
+
+和    
+
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("tel:xxxxxx");   
+02.Intent intent = new Intent(Intent.ACTION_DIAL, uri);     
+03.startActivity(intent);  
+
+两者都行    
+
+但是如果是跳转到应用,使用一下代码：
+
+
+
+
+
+[java] view plaincopy
+01.Intent intent= new Intent("android.intent.action.DIAL");   
+02.intent.setClassName("com.android.contacts","com.android.contacts.DialtactsActivity");  
+
+
+
+          到通话记录界面：
+
+
+
+
+
+[java] view plaincopy
+01.Intent intent=new Intent();  
+02.intent.setAction(Intent.ACTION_CALL_BUTTON);  
+03.startActivity(intent);  
+
+
+
+
+            到联系人界面：
+
+
+
+
+[java] view plaincopy
+01.Intent intent = new Intent();   
+02.intent.setAction(Intent.ACTION_VIEW);   
+03.intent.setData(Contacts.People.CONTENT_URI);   
+04.startActivity(intent);   
+
+
+同理，到应用：
+
+
+
+
+[java] view plaincopy
+01.Intent intent= new Intent("com.android.contacts.action.LIST_STREQUENT");   
+02.intent.setClassName("com.android.contacts","com.android.contacts.DialtactsActivity");  
+
+
+
+
+          调用联系人界面：
+
+
+
+
+
+[java] view plaincopy
+01.Intent intent = new Intent();   
+02.intent.setAction(Intent.ACTION_PICK);   
+03.intent.setData(Contacts.People.CONTENT_URI);   
+04.startActivity(intent);   
+
+          插入联系人
+
+
+
+[java] view plaincopy
+01.Intent intent=new Intent(Intent.ACTION_EDIT,Uri.parse("content://com.android.contacts/contacts/"+"1"));  
+02.startActivity(intent);  
+
+             到联系人列表界面      
+
+
+
+
+[java] view plaincopy
+01.Intent intent = new Intent(Intent.ACTION_INSERT_OR_EDIT);  
+02.            intent.setType("vnd.android.cursor.item/person");  
+03.            intent.setType("vnd.android.cursor.item/contact");  
+04.            intent.setType("vnd.android.cursor.item/raw_contact");  
+05.            intent.putExtra(android.provider.ContactsContract.Intents.Insert.NAME, name);  
+06.            intent.putExtra(android.provider.ContactsContract.Intents.Insert.COMPANY,company);  
+07.            intent.putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, tel);  
+08.            intent.putExtra(android.provider.ContactsContract.Intents.Insert.PHONE_TYPE, 3);  
+
+
+
+
+    到短信界面：
+
+
+
+
+
+
+[java] view plaincopy
+01.Intent intent = new Intent(Intent.ACTION_VIEW);  
+02.                intent.setType("vnd.android-dir/mms-sms");  
+03.//              intent.setData(Uri.parse("content://mms-sms/conversations/"));//此为号码  
+04.                startActivity(intent);  
+
+到应用：
+
+
+
+
+
+[java] view plaincopy
+01.Intent intent = new Intent("android.intent.action.CONVERSATION");  
+02.startActivity(intent);  
+
+
+以下是在网上找到的其他方法：
+
+
+
+
+
+1.从google搜索内容 
+
+
+
+[java] view plaincopy
+01.Intent intent = new Intent();   
+02.intent.setAction(Intent.ACTION_WEB_SEARCH);   
+03.intent.putExtra(SearchManager.QUERY,"searchString")   
+04.startActivity(intent);   
+
+
+2.浏览网页 
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("http://www.google.com");   
+02.Intent it   = new Intent(Intent.ACTION_VIEW,uri);   
+03.startActivity(it);   
+
+3.显示地图 
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("geo:38.899533,-77.036476");   
+02.Intent it = new Intent(Intent.Action_VIEW,uri);   
+03.startActivity(it);   
+
+
+4.路径规划 
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("http://maps.google.com/maps?f=dsaddr=startLat%20startLng&daddr=endLat%20endLng&hl=en");   
+02.Intent it = new Intent(Intent.ACTION_VIEW,URI);   
+03.startActivity(it);  
+
+ 
+
+5.拨打电话 
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("tel:xxxxxx");   
+02.Intent it = new Intent(Intent.ACTION_DIAL, uri);     
+03.startActivity(it);  
+和
+
+
+
+[java] view plaincopy
+01.uri = Uri.parse("tel:"+number);    
+02.                intent = new Intent(Intent.ACTION_CALL,uri);    
+03.                startActivity(intent);   
+
+其中不同自己试验一下就知道了。 
+
+6.调用发短信的程序 
+
+
+
+
+[java] view plaincopy
+01.Intent it = new Intent(Intent.ACTION_VIEW);     
+02.it.putExtra("sms_body", "The SMS text");     
+03.it.setType("vnd.android-dir/mms-sms");     
+04.startActivity(it);  
+
+和 
+
+
+
+[java] view plaincopy
+01.uri = Uri.parse("smsto:"+要发送短信的对方的number);    
+02.                intent = new Intent(Intent.ACTION_SENDTO,uri);    
+03.                startActivity(intent);    
+和
+
+
+[java] view plaincopy
+01.mIntent = new Intent(Intent.ACTION_VIEW);    
+02.        mIntent.putExtra("address", c.getString(c.getColumnIndex(column)));    
+03.        mIntent.setType("vnd.android-dir/mms-sms");    
+04.        startActivity(mIntent);    
+
+7.发送短信 
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("smsto:0800000123");     
+02.Intent it = new Intent(Intent.ACTION_SENDTO, uri);     
+03.it.putExtra("sms_body", "The SMS text");     
+04.startActivity(it);   
+05.String body="this is sms demo";   
+06.Intent mmsintent = new Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null));   
+07.mmsintent.putExtra(Messaging.KEY_ACTION_SENDTO_MESSAGE_BODY, body);   
+08.mmsintent.putExtra(Messaging.KEY_ACTION_SENDTO_COMPOSE_MODE, true);   
+09.mmsintent.putExtra(Messaging.KEY_ACTION_SENDTO_EXIT_ON_SENT, true);   
+10.startActivity(mmsintent);<span style="font-family: Simsun; white-space: normal; background-color: rgb(255, 255, 255);"> </span>  
+
+8.发送彩信 
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("content://media/external/images/media/23");     
+02.Intent it = new Intent(Intent.ACTION_SEND);     
+03.it.putExtra("sms_body", "some text");     
+04.it.putExtra(Intent.EXTRA_STREAM, uri);     
+05.it.setType("image/png");     
+06.startActivity(it);   
+07.StringBuilder sb = new StringBuilder();   
+08.sb.append("file://");   
+09.sb.append(fd.getAbsoluteFile());   
+10.Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.fromParts("mmsto", number, null));   
+11.// Below extra datas are all optional.   
+12.intent.putExtra(Messaging.KEY_ACTION_SENDTO_MESSAGE_SUBJECT, subject);   
+13.intent.putExtra(Messaging.KEY_ACTION_SENDTO_MESSAGE_BODY, body);   
+14.intent.putExtra(Messaging.KEY_ACTION_SENDTO_CONTENT_URI, sb.toString());   
+15.intent.putExtra(Messaging.KEY_ACTION_SENDTO_COMPOSE_MODE, composeMode);   
+16.intent.putExtra(Messaging.KEY_ACTION_SENDTO_EXIT_ON_SENT, exitOnSent);   
+17.startActivity(intent);   
+
+
+9.发送Email 
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("mailto:xxx@abc.com");   
+02.Intent it = new Intent(Intent.ACTION_SENDTO, uri);   
+03.startActivity(it);   
+04.Intent it = new Intent(Intent.ACTION_SEND);     
+05.it.putExtra(Intent.EXTRA_EMAIL, "me@abc.com");     
+06.it.putExtra(Intent.EXTRA_TEXT, "The email body text");     
+07.it.setType("text/plain");     
+08.startActivity(Intent.createChooser(it, "Choose Email Client"));   
+09.Intent it=new Intent(Intent.ACTION_SEND);       
+10.String[] tos={"me@abc.com"};       
+11.String[] ccs={"you@abc.com"};       
+12.it.putExtra(Intent.EXTRA_EMAIL, tos);       
+13.it.putExtra(Intent.EXTRA_CC, ccs);       
+14.it.putExtra(Intent.EXTRA_TEXT, "The email body text");       
+15.it.putExtra(Intent.EXTRA_SUBJECT, "The email subject text");       
+16.it.setType("message/rfc822");       
+17.startActivity(Intent.createChooser(it, "Choose Email Client"));     
+18.  
+19.Intent it = new Intent(Intent.ACTION_SEND);     
+20.it.putExtra(Intent.EXTRA_SUBJECT, "The email subject text");     
+21.it.putExtra(Intent.EXTRA_STREAM, "file:///sdcard/mysong.mp3");     
+22.sendIntent.setType("audio/mp3");     
+23.startActivity(Intent.createChooser(it, "Choose Email Client"));   
+
+
+
+10.播放多媒体   
+
+
+
+[java] view plaincopy
+01.Intent it = new Intent(Intent.ACTION_VIEW);   
+02.Uri uri = Uri.parse("file:///sdcard/song.mp3");   
+03.it.setDataAndType(uri, "audio/mp3");   
+04.startActivity(it);   
+05.Uri uri = Uri.withAppendedPath(MediaStore.Audio.Media.INTERNAL_CONTENT_URI, "1");     
+06.Intent it = new Intent(Intent.ACTION_VIEW, uri);     
+07.startActivity(it);   
+
+11.uninstall apk 
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.fromParts("package", strPackageName, null);     
+02.Intent it = new Intent(Intent.ACTION_DELETE, uri);     
+03.startActivity(it);   
+
+12.install apk 
+
+
+
+[java] view plaincopy
+01.Uri installUri = Uri.fromParts("package", "xxx", null);   
+02.returnIt = new Intent(Intent.ACTION_PACKAGE_ADDED, installUri);   
+
+13. 打开照相机 
+
+
+
+[java] view plaincopy
+01.<1>Intent i = new Intent(Intent.ACTION_CAMERA_BUTTON, null);   
+02.          this.sendBroadcast(i);   
+03.    <2>long dateTaken = System.currentTimeMillis();   
+04.         String name = createName(dateTaken) + ".jpg";   
+05.         fileName = folder + name;   
+06.         ContentValues values = new ContentValues();   
+07.         values.put(Images.Media.TITLE, fileName);   
+08.         values.put("_data", fileName);   
+09.         values.put(Images.Media.PICASA_ID, fileName);   
+10.         values.put(Images.Media.DISPLAY_NAME, fileName);   
+11.         values.put(Images.Media.DESCRIPTION, fileName);   
+12.         values.put(Images.ImageColumns.BUCKET_DISPLAY_NAME, fileName);   
+13.         Uri photoUri = getContentResolver().insert(   
+14.                   MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);   
+15.             
+16.         Intent inttPhoto = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);   
+17.         inttPhoto.putExtra(MediaStore.EXTRA_OUTPUT, photoUri);   
+18.         startActivityForResult(inttPhoto, 10);   
+
+14.从gallery选取图片 
+  
+
+
+[java] view plaincopy
+01.Intent i = new Intent();   
+02.        i.setType("image/*");   
+03.        i.setAction(Intent.ACTION_GET_CONTENT);   
+04.        startActivityForResult(i, 11);   
+
+15. 打开录音机 
+
+
+
+[java] view plaincopy
+01.Intent mi = new Intent(Media.RECORD_SOUND_ACTION);   
+02.         startActivity(mi);   
+16.显示应用详细列表      
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("market://details?id=app_id");          
+02.Intent it = new Intent(Intent.ACTION_VIEW, uri);          
+03.startActivity(it);          
+04.//where app_id is the application ID, find the ID           
+05.//by clicking on your application on Market home           
+06.//page, and notice the ID from the address bar<span style="font-family: Simsun; white-space: normal; background-color: rgb(255, 255, 255);">    </span>  
+
+刚才找app id未果，结果发现用package name也可以 Uri uri = Uri.parse("market://details?id=<packagename>"); 
+这个简单多了 
+
+17寻找应用      
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("market://search?q=pname:pkg_name");          
+02.Intent it = new Intent(Intent.ACTION_VIEW, uri);          
+03.startActivity(it);   
+04.//where pkg_name is the full package path for an application<span style="font-family: Simsun; white-space: normal; background-color: rgb(255, 255, 255);">     </span>  
+
+18打开联系人列表 
+        
+
+
+[java] view plaincopy
+01.<1>             
+02.         Intent i = new Intent();   
+03.         i.setAction(Intent.ACTION_GET_CONTENT);   
+04.         i.setType("vnd.android.cursor.item/phone");   
+05.         startActivityForResult(i, REQUEST_TEXT);   
+
+
+
+[java] view plaincopy
+01.<2>   
+02.         Uri uri = Uri.parse("content://contacts/people");   
+03.         Intent it = new Intent(Intent.ACTION_PICK, uri);   
+04.         startActivityForResult(it, REQUEST_TEXT);   
+
+19 打开另一程序 
+
+
+
+[java] view plaincopy
+01.Intent i = new Intent();   
+02.         ComponentName cn = new ComponentName("com.yellowbook.android2",   
+03.                   "com.yellowbook.android2.AndroidSearch");   
+04.         i.setComponent(cn);   
+05.         i.setAction("android.intent.action.MAIN");   
+06.         startActivityForResult(i, RESULT_OK);   
+
+
+20 添加到短信收件箱
+
+01.ContentValues cv = new ContentValues();      
+02.                cv.put("type", "1");   
+03.cv.put("address","短信地址");  
+04.cv.put("body", "短信内容");   
+05.getContentResolver().insert(Uri.parse("content://sms/inbox"), cv);   
+
+ 
+
+ 
+
+21 从sim卡或者联系人中查询
+
+01.Cursor cursor;  
+02.        Uri uri;  
+03.        if (type == 1) {  
+04.            Intent intent = new Intent();  
+05.            intent.setData(Uri.parse("content://icc/adn"));  
+06.            uri = intent.getData();  
+07.        } else  
+08.            uri = People.CONTENT_URI;  
+09.  
+10.        cursor = activity.getContentResolver().query(uri, null, null, null, null);  
+11.while (cursor.moveToNext()) {  
+
+12. int peopleId = cursor.getColumnIndex(People._ID);
+
+13. int nameId = cursor.getColumnIndex(People.NAME); 
+
+14. int phoneId = cursor.getColumnIndex(People.NUMBER);} 
+15.
+
+
+
+查看某个联系人，当然这里是ACTION_VIEW，如果为选择并返回action改为ACTION_PICK，当然处理intent时返回需要用到 startActivityforResult 
+
+Uri personUri = ContentUris.withAppendedId(People.CONTENT_URI, ID);//最后的ID参数为联系人Provider中的数据库BaseID，即哪一行 
+
+Intent intent = new Intent(); intent.setAction(Intent.ACTION_VIEW); intent.setData(personUri); startActivity(intent); 
+
+
+
+
+
+
+
+
+22 删除
+
+01.uri = ContentUris.withAppendedId(People.CONTENT_URI, 联系人id);  
+02.        int count = activity.getContentResolver().delete(uri, null, null);  
+
+ 
+
+23 添加到联系人：
+
+01.ContentValues cv = new ContentValues();  
+02.                    ArrayList<ContentProviderOperation> operationList = new ArrayList<ContentProviderOperation>();  
+03.                    ContentProviderOperation.Builder builder = ContentProviderOperation.newInsert(RawContacts.CONTENT_URI);  
+04.                    builder.withValues(cv);  
+05.                    operationList.add(builder.build());  
+06.                    builder = ContentProviderOperation.newInsert(Data.CONTENT_URI);  
+07.                    builder.withValueBackReference(StructuredName.RAW_CONTACT_ID, 0);  
+08.                    builder.withValue(Data.MIMETYPE, StructuredName.CONTENT_ITEM_TYPE);  
+09.                    builder.withValue(StructuredName.DISPLAY_NAME, "自定义联系人名");  
+10.                    operationList.add(builder.build());  
+11.                    builder = ContentProviderOperation.newInsert(Data.CONTENT_URI);  
+12.                    builder.withValueBackReference(Phone.RAW_CONTACT_ID, 0);  
+13.                    builder.withValue(Data.MIMETYPE, Phone.CONTENT_ITEM_TYPE);  
+14.                    builder.withValue(Phone.NUMBER, "联系人的phonenumber");  
+15.                    builder.withValue(Data.IS_PRIMARY, 1);  
+16.                    operationList.add(builder.build());  
+17.                    try {  
+18.                        getContentResolver().applyBatch(ContactsContract.AUTHORITY, operationList);  
+19.                    } catch (RemoteException e) {  
+20.                        e.printStackTrace();  
+21.                    } catch (OperationApplicationException e) {  
+22.                        e.printStackTrace();  
+23.                    }  
+
+ 23 选择一个图片 
+
+
+
+
+
+
+[java] view plaincopy
+01.Intent intent = new Intent(Intent.ACTION_GET_CONTENT);   
+02.intent.addCategory(Intent.CATEGORY_OPENABLE);  
+03. intent.setType("image/*");  
+04. startActivityForResult(intent, 0);   
+
+
+
+24 调用Android设备的照相机，并设置拍照后存放位置
+
+
+
+
+[java] view plaincopy
+01.Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);  
+02.intent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(new File(Environment .getExternalStorageDirectory().getAbsolutePath()+"/cwj", android123 + ".jpg"))); //存放位置为sdcard卡上cwj文件夹，文件名为android123.jpg格式  
+03.startActivityForResult(intent, 0);  
+
+25 在market上搜索指定package name，比如搜索com.android123.cwj的写法如下 
+
+
+
+
+[java] view plaincopy
+01.Uri uri = Uri.parse("market://search?q=pname:com.android123.cwj");  
+02. Intent intent = new Intent(Intent.ACTION_VIEW, uri); startActivity(intent);  
+
+
+
+26 获取文件信息，并使用相对应软件打开
+
+
+
+
+
+[java] view plaincopy
+01.private void openFile(File f)    
+02. {    
+03.   Intent intent = new Intent();    
+04.   intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);    
+05.   intent.setAction(android.content.Intent.ACTION_VIEW);    
+06.   String type = getMIMEType(f);    
+07.   intent.setDataAndType(Uri.fromFile(f), type);    
+08.   startActivity(intent);    
+09. }    
+10.   
+11. private String getMIMEType(File f){    
+12.   String end = f    
+13.       .getName()    
+14.       .substring(f.getName().lastIndexOf(".") + 1,    
+15.           f.getName().length()).toLowerCase();    
+16.   String type = "";    
+17.   if (end.equals("mp3") || end.equals("aac") || end.equals("aac")    
+18.       || end.equals("amr") || end.equals("mpeg")    
+19.       || end.equals("mp4"))    
+20.   {    
+21.     type = "audio";    
+22.   } else if (end.equals("jpg") || end.equals("gif")    
+23.       || end.equals("png") || end.equals("jpeg"))    
+24.   {    
+25.     type = "image";    
+26.   } else    
+27.   {    
+28.     type = "*";    
+29.   }    
+30.   type += "/*";    
+31.   return type;    
+32. }
+
