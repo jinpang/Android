@@ -1,0 +1,26 @@
+android渐变色
+一、LinearGradient线性渐变
+  在android平台中提供了两种重载方式来实例化该类分别为，他们的不同之处为参数中第一种方法可以用颜色数组，和位置来实现更细腻的过渡效果，比如颜色采样int[] colors数组中存放20种颜色，则渐变将会逐一处理。而第二种方法参数仅为起初颜色color0和最终颜色color1。
+LinearGradient(float x0, float y0, float x1, float y1, int[] colors, float[] positions, Shader.TileMode tile) 
+LinearGradient(float x0, float y0, float x1, float y1, int color0, int color1, Shader.TileMode tile) 
+ 
+使用实例如下
+Paint p=new Paint();
+LinearGradient lg=new LinearGradient(0,0,100,100,Color.RED,Color.BLUE,Shader.TileMode.MIRROR);  //参数一为渐变起初点坐标x位置，参数二为y轴位置，参数三和四分辨对应渐变终点，最后参数为平铺方式，这里设置为镜像
+刚才Android开发网已经讲到Gradient是基于Shader类，所以我们通过Paint的setShader方法来设置这个渐变，代码如下:
+p.setShader(lg);
+canvas.drawCicle(0,0,200,p); //参数3为画圆的半径，类型为float型。
+二、 RadialGradient镜像渐变
+有了上面的基础，我们一起来了解下径向渐变。和上面参数唯一不同的是，径向渐变第三个参数是半径，其他的和线性渐变相同。
+RadialGradient(float x, float y, float radius, int[] colors, float[] positions, Shader.TileMode tile) 
+RadialGradient(float x, float y, float radius, int color0, int color1, Shader.TileMode tile)
+三、 SweepGradient角度渐变
+对于一些3D立体效果的渐变可以尝试用角度渐变来完成一个圆锥形，相对来说比上面更简单，前两个参数为中心点，然后通过载入的颜色来平均的渐变渲染。
+SweepGradient(float cx, float cy, int[] colors, float[] positions)  //对于最后一个参数SDK上的描述为May be NULL. The relative position of each corresponding color in the colors array, beginning with 0 and ending with 1.0. If the values are not monotonic, the drawing may produce unexpected results. If positions is NULL, then the colors are automatically spaced evenly.，所以Android123建议使用下面的重载方法，本方法一般为NULL即可。
+SweepGradient(float cx, float cy, int color0, int color1)
+有关Android游戏开发中需要遇到的图形绘制技术，我们近期仍然需要花费更多的篇幅去介绍，希望大家有更坚实的基础，有关更多的Android开发内容请关注Android123.
+Shader类的派生类可以创建允许使用多种固体颜色填充绘图对象的Paint。
+对Shader最常见的使用是定义渐变填充；渐变是在2D图像中添加深度和纹理的最佳方式之一。Android包含了一个Bitmap Shader和一个Compose Shader，同时，还包含了三个渐变的Shader。
+试图用语言来描述绘图的效果本来就是没有意义的，所以看一下图11-1就应该可以知道每一种Shader是如何工作的。图中从左到右依次代表的是LinearGradient、RadialGradient和 SweepGradient.
+
+come from http://l62s.iteye.com/blog/1659541
