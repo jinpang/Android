@@ -249,3 +249,6 @@ break;
  
 
 转自网络http://blog.sina.com.cn/s/blog_77c632410101790w.html
+
+//设为自动切换
+setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
