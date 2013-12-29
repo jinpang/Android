@@ -1,0 +1,1755 @@
+/*
+ * Copyright (C) 2009 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+public abstract class Entry {
+    public static final String[] ID_PROJECTION = { "_id" };
+
+    public static interface Columns {
+        public static final String ID = "_id";
+    }
+
+    // The primary key of the entry.
+    @Column("_id")
+    public long id = 0;
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    public @interface Table {
+        String value();
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.FIELD)
+    public @interface Column {
+        String value();
+
+        boolean indexed() default false;
+
+        boolean fullText() default false;
+
+        String defaultValue() default "";
+
+        boolean unique() default false;
+    }
+
+    public void clear() {
+        id = 0;
+    }
+}
+
+
+/*
+ * Copyright (C) 2009 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.text.TextUtils;
+
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+
+public final class EntrySchema {
+    @SuppressWarnings("unused")
+    private static final String TAG = "EntrySchema";
+
+    public static final int TYPE_STRING = 0;
+    public static final int TYPE_BOOLEAN = 1;
+    public static final int TYPE_SHORT = 2;
+    public static final int TYPE_INT = 3;
+    public static final int TYPE_LONG = 4;
+    public static final int TYPE_FLOAT = 5;
+    public static final int TYPE_DOUBLE = 6;
+    public static final int TYPE_BLOB = 7;
+    private static final String SQLITE_TYPES[] = {
+            "TEXT", "INTEGER", "INTEGER", "INTEGER", "INTEGER", "REAL", "REAL", "NONE" };
+
+    private static final String FULL_TEXT_INDEX_SUFFIX = "_fulltext";
+
+    private final String mTableName;
+    private final ColumnInfo[] mColumnInfo;
+    private final String[] mProjection;
+    private final boolean mHasFullTextIndex;
+
+    public EntrySchema(Class<? extends Entry> clazz) {
+        // Get table and column metadata from reflection.
+        ColumnInfo[] columns = parseColumnInfo(clazz);
+        mTableName = parseTableName(clazz);
+        mColumnInfo = columns;
+
+        // Cache the list of projection columns and check for full-text columns.
+        String[] projection = {};
+        boolean hasFullTextIndex = false;
+        if (columns != null) {
+            projection = new String[columns.length];
+            for (int i = 0; i != columns.length; ++i) {
+                ColumnInfo column = columns[i];
+                projection[i] = column.name;
+                if (column.fullText) {
+                    hasFullTextIndex = true;
+                }
+            }
+        }
+        mProjection = projection;
+        mHasFullTextIndex = hasFullTextIndex;
+    }
+
+    public String getTableName() {
+        return mTableName;
+    }
+
+    public ColumnInfo[] getColumnInfo() {
+        return mColumnInfo;
+    }
+
+    public String[] getProjection() {
+        return mProjection;
+    }
+
+    public int getColumnIndex(String columnName) {
+        for (ColumnInfo column : mColumnInfo) {
+            if (column.name.equals(columnName)) {
+                return column.projectionIndex;
+            }
+        }
+        return -1;
+    }
+
+    public ColumnInfo getColumn(String columnName) {
+        int index = getColumnIndex(columnName);
+        return (index < 0) ? null : mColumnInfo[index];
+    }
+
+    private void logExecSql(SQLiteDatabase db, String sql) {
+        db.execSQL(sql);
+    }
+
+    public <T extends Entry> T cursorToObject(Cursor cursor, T object) {
+        try {
+            for (ColumnInfo column : mColumnInfo) {
+                int columnIndex = column.projectionIndex;
+                Field field = column.field;
+                switch (column.type) {
+                case TYPE_STRING:
+                    field.set(object, cursor.isNull(columnIndex)
+                            ? null
+                            : cursor.getString(columnIndex));
+                    break;
+                case TYPE_BOOLEAN:
+                    field.setBoolean(object, cursor.getShort(columnIndex) == 1);
+                    break;
+                case TYPE_SHORT:
+                    field.setShort(object, cursor.getShort(columnIndex));
+                    break;
+                case TYPE_INT:
+                    field.setInt(object, cursor.getInt(columnIndex));
+                    break;
+                case TYPE_LONG:
+                    field.setLong(object, cursor.getLong(columnIndex));
+                    break;
+                case TYPE_FLOAT:
+                    field.setFloat(object, cursor.getFloat(columnIndex));
+                    break;
+                case TYPE_DOUBLE:
+                    field.setDouble(object, cursor.getDouble(columnIndex));
+                    break;
+                case TYPE_BLOB:
+                    field.set(object, cursor.isNull(columnIndex)
+                            ? null
+                            : cursor.getBlob(columnIndex));
+                    break;
+                }
+            }
+            return object;
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void setIfNotNull(Field field, Object object, Object value)
+            throws IllegalAccessException {
+        if (value != null) field.set(object, value);
+    }
+
+    /**
+     * Converts the ContentValues to the object. The ContentValues may not
+     * contain values for all the fields in the object.
+     */
+    public <T extends Entry> T valuesToObject(ContentValues values, T object) {
+        try {
+            for (ColumnInfo column : mColumnInfo) {
+                String columnName = column.name;
+                Field field = column.field;
+                switch (column.type) {
+                case TYPE_STRING:
+                    setIfNotNull(field, object, values.getAsString(columnName));
+                    break;
+                case TYPE_BOOLEAN:
+                    setIfNotNull(field, object, values.getAsBoolean(columnName));
+                    break;
+                case TYPE_SHORT:
+                    setIfNotNull(field, object, values.getAsShort(columnName));
+                    break;
+                case TYPE_INT:
+                    setIfNotNull(field, object, values.getAsInteger(columnName));
+                    break;
+                case TYPE_LONG:
+                    setIfNotNull(field, object, values.getAsLong(columnName));
+                    break;
+                case TYPE_FLOAT:
+                    setIfNotNull(field, object, values.getAsFloat(columnName));
+                    break;
+                case TYPE_DOUBLE:
+                    setIfNotNull(field, object, values.getAsDouble(columnName));
+                    break;
+                case TYPE_BLOB:
+                    setIfNotNull(field, object, values.getAsByteArray(columnName));
+                    break;
+                }
+            }
+            return object;
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void objectToValues(Entry object, ContentValues values) {
+        try {
+            for (ColumnInfo column : mColumnInfo) {
+                String columnName = column.name;
+                Field field = column.field;
+                switch (column.type) {
+                case TYPE_STRING:
+                    values.put(columnName, (String) field.get(object));
+                    break;
+                case TYPE_BOOLEAN:
+                    values.put(columnName, field.getBoolean(object));
+                    break;
+                case TYPE_SHORT:
+                    values.put(columnName, field.getShort(object));
+                    break;
+                case TYPE_INT:
+                    values.put(columnName, field.getInt(object));
+                    break;
+                case TYPE_LONG:
+                    values.put(columnName, field.getLong(object));
+                    break;
+                case TYPE_FLOAT:
+                    values.put(columnName, field.getFloat(object));
+                    break;
+                case TYPE_DOUBLE:
+                    values.put(columnName, field.getDouble(object));
+                    break;
+                case TYPE_BLOB:
+                    values.put(columnName, (byte[]) field.get(object));
+                    break;
+                }
+            }
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public String toDebugString(Entry entry) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("ID=").append(entry.id);
+            for (ColumnInfo column : mColumnInfo) {
+                String columnName = column.name;
+                Field field = column.field;
+                Object value = field.get(entry);
+                sb.append(" ").append(columnName).append("=")
+                        .append((value == null) ? "null" : value.toString());
+            }
+            return sb.toString();
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public String toDebugString(Entry entry, String... columnNames) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("ID=").append(entry.id);
+            for (String columnName : columnNames) {
+                ColumnInfo column = getColumn(columnName);
+                Field field = column.field;
+                Object value = field.get(entry);
+                sb.append(" ").append(columnName).append("=")
+                        .append((value == null) ? "null" : value.toString());
+            }
+            return sb.toString();
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Cursor queryAll(SQLiteDatabase db) {
+        return db.query(mTableName, mProjection, null, null, null, null, null);
+    }
+
+    public boolean queryWithId(SQLiteDatabase db, long id, Entry entry) {
+        Cursor cursor = db.query(mTableName, mProjection, "_id=?",
+                new String[] {Long.toString(id)}, null, null, null);
+        boolean success = false;
+        if (cursor.moveToFirst()) {
+            cursorToObject(cursor, entry);
+            success = true;
+        }
+        cursor.close();
+        return success;
+    }
+
+    public long insertOrReplace(SQLiteDatabase db, Entry entry) {
+        ContentValues values = new ContentValues();
+        objectToValues(entry, values);
+        if (entry.id == 0) {
+            values.remove("_id");
+        }
+        long id = db.replace(mTableName, "_id", values);
+        entry.id = id;
+        return id;
+    }
+
+    public boolean deleteWithId(SQLiteDatabase db, long id) {
+        return db.delete(mTableName, "_id=?", new String[] { Long.toString(id) }) == 1;
+    }
+
+    public void createTables(SQLiteDatabase db) {
+        // Wrapped class must have a @Table.Definition.
+        String tableName = mTableName;
+        Utils.assertTrue(tableName != null);
+
+        // Add the CREATE TABLE statement for the main table.
+        StringBuilder sql = new StringBuilder("CREATE TABLE ");
+        sql.append(tableName);
+        sql.append(" (_id INTEGER PRIMARY KEY AUTOINCREMENT");
+        StringBuilder unique = new StringBuilder();
+        for (ColumnInfo column : mColumnInfo) {
+            if (!column.isId()) {
+                sql.append(',');
+                sql.append(column.name);
+                sql.append(' ');
+                sql.append(SQLITE_TYPES[column.type]);
+                if (!TextUtils.isEmpty(column.defaultValue)) {
+                    sql.append(" DEFAULT ");
+                    sql.append(column.defaultValue);
+                }
+                if (column.unique) {
+                    if (unique.length() == 0) {
+                        unique.append(column.name);
+                    } else {
+                        unique.append(',').append(column.name);
+                    }
+                }
+            }
+        }
+        if (unique.length() > 0) {
+            sql.append(",UNIQUE(").append(unique).append(')');
+        }
+        sql.append(");");
+        logExecSql(db, sql.toString());
+        sql.setLength(0);
+
+        // Create indexes for all indexed columns.
+        for (ColumnInfo column : mColumnInfo) {
+            // Create an index on the indexed columns.
+            if (column.indexed) {
+                sql.append("CREATE INDEX ");
+                sql.append(tableName);
+                sql.append("_index_");
+                sql.append(column.name);
+                sql.append(" ON ");
+                sql.append(tableName);
+                sql.append(" (");
+                sql.append(column.name);
+                sql.append(");");
+                logExecSql(db, sql.toString());
+                sql.setLength(0);
+            }
+        }
+
+        if (mHasFullTextIndex) {
+            // Add an FTS virtual table if using full-text search.
+            String ftsTableName = tableName + FULL_TEXT_INDEX_SUFFIX;
+            sql.append("CREATE VIRTUAL TABLE ");
+            sql.append(ftsTableName);
+            sql.append(" USING FTS3 (_id INTEGER PRIMARY KEY");
+            for (ColumnInfo column : mColumnInfo) {
+                if (column.fullText) {
+                    // Add the column to the FTS table.
+                    String columnName = column.name;
+                    sql.append(',');
+                    sql.append(columnName);
+                    sql.append(" TEXT");
+                }
+            }
+            sql.append(");");
+            logExecSql(db, sql.toString());
+            sql.setLength(0);
+
+            // Build an insert statement that will automatically keep the FTS
+            // table in sync.
+            StringBuilder insertSql = new StringBuilder("INSERT OR REPLACE INTO ");
+            insertSql.append(ftsTableName);
+            insertSql.append(" (_id");
+            for (ColumnInfo column : mColumnInfo) {
+                if (column.fullText) {
+                    insertSql.append(',');
+                    insertSql.append(column.name);
+                }
+            }
+            insertSql.append(") VALUES (new._id");
+            for (ColumnInfo column : mColumnInfo) {
+                if (column.fullText) {
+                    insertSql.append(",new.");
+                    insertSql.append(column.name);
+                }
+            }
+            insertSql.append(");");
+            String insertSqlString = insertSql.toString();
+
+            // Add an insert trigger.
+            sql.append("CREATE TRIGGER ");
+            sql.append(tableName);
+            sql.append("_insert_trigger AFTER INSERT ON ");
+            sql.append(tableName);
+            sql.append(" FOR EACH ROW BEGIN ");
+            sql.append(insertSqlString);
+            sql.append("END;");
+            logExecSql(db, sql.toString());
+            sql.setLength(0);
+
+            // Add an update trigger.
+            sql.append("CREATE TRIGGER ");
+            sql.append(tableName);
+            sql.append("_update_trigger AFTER UPDATE ON ");
+            sql.append(tableName);
+            sql.append(" FOR EACH ROW BEGIN ");
+            sql.append(insertSqlString);
+            sql.append("END;");
+            logExecSql(db, sql.toString());
+            sql.setLength(0);
+
+            // Add a delete trigger.
+            sql.append("CREATE TRIGGER ");
+            sql.append(tableName);
+            sql.append("_delete_trigger AFTER DELETE ON ");
+            sql.append(tableName);
+            sql.append(" FOR EACH ROW BEGIN DELETE FROM ");
+            sql.append(ftsTableName);
+            sql.append(" WHERE _id = old._id; END;");
+            logExecSql(db, sql.toString());
+            sql.setLength(0);
+        }
+    }
+
+    public void dropTables(SQLiteDatabase db) {
+        String tableName = mTableName;
+        StringBuilder sql = new StringBuilder("DROP TABLE IF EXISTS ");
+        sql.append(tableName);
+        sql.append(';');
+        logExecSql(db, sql.toString());
+        sql.setLength(0);
+
+        if (mHasFullTextIndex) {
+            sql.append("DROP TABLE IF EXISTS ");
+            sql.append(tableName);
+            sql.append(FULL_TEXT_INDEX_SUFFIX);
+            sql.append(';');
+            logExecSql(db, sql.toString());
+        }
+
+    }
+
+    public void deleteAll(SQLiteDatabase db) {
+        StringBuilder sql = new StringBuilder("DELETE FROM ");
+        sql.append(mTableName);
+        sql.append(";");
+        logExecSql(db, sql.toString());
+    }
+
+    private String parseTableName(Class<? extends Object> clazz) {
+        // Check for a table annotation.
+        Entry.Table table = clazz.getAnnotation(Entry.Table.class);
+        if (table == null) {
+            return null;
+        }
+
+        // Return the table name.
+        return table.value();
+    }
+
+    private ColumnInfo[] parseColumnInfo(Class<? extends Object> clazz) {
+        ArrayList<ColumnInfo> columns = new ArrayList<ColumnInfo>();
+        while (clazz != null) {
+            parseColumnInfo(clazz, columns);
+            clazz = clazz.getSuperclass();
+        }
+
+        // Return a list.
+        ColumnInfo[] columnList = new ColumnInfo[columns.size()];
+        columns.toArray(columnList);
+        return columnList;
+    }
+
+    private void parseColumnInfo(Class<? extends Object> clazz, ArrayList<ColumnInfo> columns) {
+        // Gather metadata from each annotated field.
+        Field[] fields = clazz.getDeclaredFields(); // including non-public fields
+        for (int i = 0; i != fields.length; ++i) {
+            // Get column metadata from the annotation.
+            Field field = fields[i];
+            Entry.Column info = ((AnnotatedElement) field).getAnnotation(Entry.Column.class);
+            if (info == null) continue;
+
+            // Determine the field type.
+            int type;
+            Class<?> fieldType = field.getType();
+            if (fieldType == String.class) {
+                type = TYPE_STRING;
+            } else if (fieldType == boolean.class) {
+                type = TYPE_BOOLEAN;
+            } else if (fieldType == short.class) {
+                type = TYPE_SHORT;
+            } else if (fieldType == int.class) {
+                type = TYPE_INT;
+            } else if (fieldType == long.class) {
+                type = TYPE_LONG;
+            } else if (fieldType == float.class) {
+                type = TYPE_FLOAT;
+            } else if (fieldType == double.class) {
+                type = TYPE_DOUBLE;
+            } else if (fieldType == byte[].class) {
+                type = TYPE_BLOB;
+            } else {
+                throw new IllegalArgumentException(
+                        "Unsupported field type for column: " + fieldType.getName());
+            }
+
+            // Add the column to the array.
+            int index = columns.size();
+            columns.add(new ColumnInfo(info.value(), type, info.indexed(), info.unique(),
+                    info.fullText(), info.defaultValue(), field, index));
+        }
+    }
+
+    public static final class ColumnInfo {
+        private static final String ID_KEY = "_id";
+
+        public final String name;
+        public final int type;
+        public final boolean indexed;
+        public final boolean unique;
+        public final boolean fullText;
+        public final String defaultValue;
+        public final Field field;
+        public final int projectionIndex;
+
+        public ColumnInfo(String name, int type, boolean indexed, boolean unique,
+                boolean fullText, String defaultValue, Field field, int projectionIndex) {
+            this.name = name.toLowerCase();
+            this.type = type;
+            this.indexed = indexed;
+            this.unique = unique;
+            this.fullText = fullText;
+            this.defaultValue = defaultValue;
+            this.field = field;
+            this.projectionIndex = projectionIndex;
+
+            field.setAccessible(true); // in order to set non-public fields
+        }
+
+        public boolean isId() {
+            return ID_KEY.equals(name);
+        }
+    }
+}
+
+/*
+ * Copyright (C) 2011 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
+
+import com.android.gallery3d.common.Entry.Table;
+
+import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
+
+public class FileCache implements Closeable {
+    private static final int LRU_CAPACITY = 4;
+    private static final int MAX_DELETE_COUNT = 16;
+
+    private static final String TAG = "FileCache";
+    private static final String TABLE_NAME = FileEntry.SCHEMA.getTableName();
+    private static final String FILE_PREFIX = "download";
+    private static final String FILE_POSTFIX = ".tmp";
+
+    private static final String QUERY_WHERE =
+            FileEntry.Columns.HASH_CODE + "=? AND " + FileEntry.Columns.CONTENT_URL + "=?";
+    private static final String ID_WHERE = FileEntry.Columns.ID + "=?";
+    private static final String[] PROJECTION_SIZE_SUM =
+            {String.format("sum(%s)", FileEntry.Columns.SIZE)};
+    private static final String FREESPACE_PROJECTION[] = {
+            FileEntry.Columns.ID, FileEntry.Columns.FILENAME,
+            FileEntry.Columns.CONTENT_URL, FileEntry.Columns.SIZE};
+    private static final String FREESPACE_ORDER_BY =
+            String.format("%s ASC", FileEntry.Columns.LAST_ACCESS);
+
+    private final LruCache<String, CacheEntry> mEntryMap =
+            new LruCache<String, CacheEntry>(LRU_CAPACITY);
+
+    private File mRootDir;
+    private long mCapacity;
+    private boolean mInitialized = false;
+    private long mTotalBytes;
+
+    private DatabaseHelper mDbHelper;
+
+    public static final class CacheEntry {
+        private long id;
+        public String contentUrl;
+        public File cacheFile;
+
+        private CacheEntry(long id, String contentUrl, File cacheFile) {
+            this.id = id;
+            this.contentUrl = contentUrl;
+            this.cacheFile = cacheFile;
+        }
+    }
+
+    public static void deleteFiles(Context context, File rootDir, String dbName) {
+        try {
+            context.getDatabasePath(dbName).delete();
+            File[] files = rootDir.listFiles();
+            if (files == null) return;
+            for (File file : rootDir.listFiles()) {
+                String name = file.getName();
+                if (file.isFile() && name.startsWith(FILE_PREFIX)
+                        && name.endsWith(FILE_POSTFIX)) file.delete();
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "cannot reset database", t);
+        }
+    }
+
+    public FileCache(Context context, File rootDir, String dbName, long capacity) {
+        mRootDir = Utils.checkNotNull(rootDir);
+        mCapacity = capacity;
+        mDbHelper = new DatabaseHelper(context, dbName);
+    }
+
+    @Override
+    public void close() {
+        mDbHelper.close();
+    }
+
+    public void store(String downloadUrl, File file) {
+        if (!mInitialized) initialize();
+
+        Utils.assertTrue(file.getParentFile().equals(mRootDir));
+        FileEntry entry = new FileEntry();
+        entry.hashCode = Utils.crc64Long(downloadUrl);
+        entry.contentUrl = downloadUrl;
+        entry.filename = file.getName();
+        entry.size = file.length();
+        entry.lastAccess = System.currentTimeMillis();
+        if (entry.size >= mCapacity) {
+            file.delete();
+            throw new IllegalArgumentException("file too large: " + entry.size);
+        }
+        synchronized (this) {
+            FileEntry original = queryDatabase(downloadUrl);
+            if (original != null) {
+                file.delete();
+                entry.filename = original.filename;
+                entry.size = original.size;
+            } else {
+                mTotalBytes += entry.size;
+            }
+            FileEntry.SCHEMA.insertOrReplace(
+                    mDbHelper.getWritableDatabase(), entry);
+            if (mTotalBytes > mCapacity) freeSomeSpaceIfNeed(MAX_DELETE_COUNT);
+        }
+    }
+
+    public CacheEntry lookup(String downloadUrl) {
+        if (!mInitialized) initialize();
+        CacheEntry entry;
+        synchronized (mEntryMap) {
+            entry = mEntryMap.get(downloadUrl);
+        }
+
+        if (entry != null) {
+            synchronized (this) {
+                updateLastAccess(entry.id);
+            }
+            return entry;
+        }
+
+        synchronized (this) {
+            FileEntry file = queryDatabase(downloadUrl);
+            if (file == null) return null;
+            entry = new CacheEntry(
+                    file.id, downloadUrl, new File(mRootDir, file.filename));
+            if (!entry.cacheFile.isFile()) { // file has been removed
+                try {
+                    mDbHelper.getWritableDatabase().delete(
+                            TABLE_NAME, ID_WHERE, new String[] {String.valueOf(file.id)});
+                    mTotalBytes -= file.size;
+                } catch (Throwable t) {
+                    Log.w(TAG, "cannot delete entry: " + file.filename, t);
+                }
+                return null;
+            }
+            synchronized (mEntryMap) {
+                mEntryMap.put(downloadUrl, entry);
+            }
+            return entry;
+        }
+    }
+
+    private FileEntry queryDatabase(String downloadUrl) {
+        long hash = Utils.crc64Long(downloadUrl);
+        String whereArgs[] = new String[] {String.valueOf(hash), downloadUrl};
+        Cursor cursor = mDbHelper.getReadableDatabase().query(TABLE_NAME,
+                FileEntry.SCHEMA.getProjection(),
+                QUERY_WHERE, whereArgs, null, null, null);
+        try {
+            if (!cursor.moveToNext()) return null;
+            FileEntry entry = new FileEntry();
+            FileEntry.SCHEMA.cursorToObject(cursor, entry);
+            updateLastAccess(entry.id);
+            return entry;
+        } finally {
+            cursor.close();
+        }
+    }
+
+    private void updateLastAccess(long id) {
+        ContentValues values = new ContentValues();
+        values.put(FileEntry.Columns.LAST_ACCESS, System.currentTimeMillis());
+        mDbHelper.getWritableDatabase().update(TABLE_NAME,
+                values,  ID_WHERE, new String[] {String.valueOf(id)});
+    }
+
+    public File createFile() throws IOException {
+        return File.createTempFile(FILE_PREFIX, FILE_POSTFIX, mRootDir);
+    }
+
+    private synchronized void initialize() {
+        if (mInitialized) return;
+
+        if (!mRootDir.isDirectory()) {
+            mRootDir.mkdirs();
+            if (!mRootDir.isDirectory()) {
+                throw new RuntimeException("cannot create: " + mRootDir.getAbsolutePath());
+            }
+        }
+
+        Cursor cursor = mDbHelper.getReadableDatabase().query(
+                TABLE_NAME, PROJECTION_SIZE_SUM,
+                null, null, null, null, null);
+        try {
+            if (cursor.moveToNext()) mTotalBytes = cursor.getLong(0);
+        } finally {
+            cursor.close();
+        }
+        if (mTotalBytes > mCapacity) freeSomeSpaceIfNeed(MAX_DELETE_COUNT);
+
+        // Mark initialized when everything above went through. If an exception was thrown,
+        // initialize() will be retried later.
+        mInitialized = true;
+    }
+
+    private void freeSomeSpaceIfNeed(int maxDeleteFileCount) {
+        Cursor cursor = mDbHelper.getReadableDatabase().query(
+                TABLE_NAME, FREESPACE_PROJECTION,
+                null, null, null, null, FREESPACE_ORDER_BY);
+        try {
+            while (maxDeleteFileCount > 0
+                    && mTotalBytes > mCapacity && cursor.moveToNext()) {
+                long id = cursor.getLong(0);
+                String path = cursor.getString(1);
+                String url = cursor.getString(2);
+                long size = cursor.getLong(3);
+
+                synchronized (mEntryMap) {
+                    // if some one still uses it
+                    if (mEntryMap.containsKey(url)) continue;
+                }
+
+                --maxDeleteFileCount;
+                if (new File(mRootDir, path).delete()) {
+                    mTotalBytes -= size;
+                    mDbHelper.getWritableDatabase().delete(TABLE_NAME,
+                            ID_WHERE, new String[]{String.valueOf(id)});
+                } else {
+                    Log.w(TAG, "unable to delete file: " + path);
+                }
+            }
+        } finally {
+            cursor.close();
+        }
+    }
+
+    @Table("files")
+    private static class FileEntry extends Entry {
+        public static final EntrySchema SCHEMA = new EntrySchema(FileEntry.class);
+
+        public interface Columns extends Entry.Columns {
+            public static final String HASH_CODE = "hash_code";
+            public static final String CONTENT_URL = "content_url";
+            public static final String FILENAME = "filename";
+            public static final String SIZE = "size";
+            public static final String LAST_ACCESS = "last_access";
+        }
+
+        @Column(value = Columns.HASH_CODE, indexed = true)
+        public long hashCode;
+
+        @Column(Columns.CONTENT_URL)
+        public String contentUrl;
+
+        @Column(Columns.FILENAME)
+        public String filename;
+
+        @Column(Columns.SIZE)
+        public long size;
+
+        @Column(value = Columns.LAST_ACCESS, indexed = true)
+        public long lastAccess;
+
+        @Override
+        public String toString() {
+            return new StringBuilder()
+                    .append("hash_code: ").append(hashCode).append(", ")
+                    .append("content_url").append(contentUrl).append(", ")
+                    .append("last_access").append(lastAccess).append(", ")
+                    .append("filename").append(filename).toString();
+        }
+    }
+
+    private final class DatabaseHelper extends SQLiteOpenHelper {
+        public static final int DATABASE_VERSION = 1;
+
+        public DatabaseHelper(Context context, String dbName) {
+            super(context, dbName, null, DATABASE_VERSION);
+        }
+
+        @Override
+        public void onCreate(SQLiteDatabase db) {
+            FileEntry.SCHEMA.createTables(db);
+
+            // delete old files
+            for (File file : mRootDir.listFiles()) {
+                if (!file.delete()) {
+                    Log.w(TAG, "fail to remove: " + file.getAbsolutePath());
+                }
+            }
+        }
+
+        @Override
+        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+            //reset everything
+            FileEntry.SCHEMA.dropTables(db);
+            onCreate(db);
+        }
+    }
+}
+
+/*
+ * Copyright (C) 2010 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import com.android.gallery3d.common.Entry;
+import com.android.gallery3d.common.EntrySchema;
+
+
+@Entry.Table("download")
+public class DownloadEntry extends Entry {
+    public static final EntrySchema SCHEMA = new EntrySchema(DownloadEntry.class);
+
+    public static interface Columns extends Entry.Columns {
+        public static final String HASH_CODE = "hash_code";
+        public static final String CONTENT_URL = "content_url";
+        public static final String CONTENT_SIZE = "_size";
+        public static final String ETAG = "etag";
+        public static final String LAST_ACCESS = "last_access";
+        public static final String LAST_UPDATED = "last_updated";
+        public static final String DATA = "_data";
+    }
+
+    @Column(value = "hash_code", indexed = true)
+    public long hashCode;
+
+    @Column("content_url")
+    public String contentUrl;
+
+    @Column("_size")
+    public long contentSize;
+
+    @Column("etag")
+    public String eTag;
+
+    @Column(value = "last_access", indexed = true)
+    public long lastAccessTime;
+
+    @Column(value = "last_updated")
+    public long lastUpdatedTime;
+
+    @Column("_data")
+    public String path;
+
+    @Override
+    public String toString() {
+        // Note: THIS IS REQUIRED. We used all the fields here. Otherwise,
+        //       ProGuard will remove these UNUSED fields. However, these
+        //       fields are needed to generate database.
+        return new StringBuilder()
+                .append("hash_code: ").append(hashCode).append(", ")
+                .append("content_url").append(contentUrl).append(", ")
+                .append("_size").append(contentSize).append(", ")
+                .append("etag").append(eTag).append(", ")
+                .append("last_access").append(lastAccessTime).append(", ")
+                .append("last_updated").append(lastUpdatedTime).append(",")
+                .append("_data").append(path)
+                .toString();
+    }
+}
+
+
+/*
+ * Copyright (C) 2010 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+
+import com.android.gallery3d.app.GalleryApp;
+import com.android.gallery3d.common.LruCache;
+import com.android.gallery3d.common.Utils;
+import com.android.gallery3d.data.DownloadEntry.Columns;
+import com.android.gallery3d.util.Future;
+import com.android.gallery3d.util.FutureListener;
+import com.android.gallery3d.util.ThreadPool;
+import com.android.gallery3d.util.ThreadPool.CancelListener;
+import com.android.gallery3d.util.ThreadPool.Job;
+import com.android.gallery3d.util.ThreadPool.JobContext;
+
+import java.io.File;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.HashSet;
+
+public class DownloadCache {
+    private static final String TAG = "DownloadCache";
+    private static final int MAX_DELETE_COUNT = 16;
+    private static final int LRU_CAPACITY = 4;
+
+    private static final String TABLE_NAME = DownloadEntry.SCHEMA.getTableName();
+
+    private static final String QUERY_PROJECTION[] = {Columns.ID, Columns.DATA};
+    private static final String WHERE_HASH_AND_URL = String.format(
+            "%s = ? AND %s = ?", Columns.HASH_CODE, Columns.CONTENT_URL);
+    private static final int QUERY_INDEX_ID = 0;
+    private static final int QUERY_INDEX_DATA = 1;
+
+    private static final String FREESPACE_PROJECTION[] = {
+            Columns.ID, Columns.DATA, Columns.CONTENT_URL, Columns.CONTENT_SIZE};
+    private static final String FREESPACE_ORDER_BY =
+            String.format("%s ASC", Columns.LAST_ACCESS);
+    private static final int FREESPACE_IDNEX_ID = 0;
+    private static final int FREESPACE_IDNEX_DATA = 1;
+    private static final int FREESPACE_INDEX_CONTENT_URL = 2;
+    private static final int FREESPACE_INDEX_CONTENT_SIZE = 3;
+
+    private static final String ID_WHERE = Columns.ID + " = ?";
+
+    private static final String SUM_PROJECTION[] =
+            {String.format("sum(%s)", Columns.CONTENT_SIZE)};
+    private static final int SUM_INDEX_SUM = 0;
+
+    private final LruCache<String, Entry> mEntryMap =
+            new LruCache<String, Entry>(LRU_CAPACITY);
+    private final HashMap<String, DownloadTask> mTaskMap =
+            new HashMap<String, DownloadTask>();
+    private final File mRoot;
+    private final GalleryApp mApplication;
+    private final SQLiteDatabase mDatabase;
+    private final long mCapacity;
+
+    private long mTotalBytes = 0;
+    private boolean mInitialized = false;
+
+    public DownloadCache(GalleryApp application, File root, long capacity) {
+        mRoot = Utils.checkNotNull(root);
+        mApplication = Utils.checkNotNull(application);
+        mCapacity = capacity;
+        mDatabase = new DatabaseHelper(application.getAndroidContext())
+                .getWritableDatabase();
+    }
+
+    private Entry findEntryInDatabase(String stringUrl) {
+        long hash = Utils.crc64Long(stringUrl);
+        String whereArgs[] = {String.valueOf(hash), stringUrl};
+        Cursor cursor = mDatabase.query(TABLE_NAME, QUERY_PROJECTION,
+                WHERE_HASH_AND_URL, whereArgs, null, null, null);
+        try {
+            if (cursor.moveToNext()) {
+                File file = new File(cursor.getString(QUERY_INDEX_DATA));
+                long id = cursor.getInt(QUERY_INDEX_ID);
+                Entry entry = null;
+                synchronized (mEntryMap) {
+                    entry = mEntryMap.get(stringUrl);
+                    if (entry == null) {
+                        entry = new Entry(id, file);
+                        mEntryMap.put(stringUrl, entry);
+                    }
+                }
+                return entry;
+            }
+        } finally {
+            cursor.close();
+        }
+        return null;
+    }
+
+    public Entry download(JobContext jc, URL url) {
+        if (!mInitialized) initialize();
+
+        String stringUrl = url.toString();
+
+        // First find in the entry-pool
+        synchronized (mEntryMap) {
+            Entry entry = mEntryMap.get(stringUrl);
+            if (entry != null) {
+                updateLastAccess(entry.mId);
+                return entry;
+            }
+        }
+
+        // Then, find it in database
+        TaskProxy proxy = new TaskProxy();
+        synchronized (mTaskMap) {
+            Entry entry = findEntryInDatabase(stringUrl);
+            if (entry != null) {
+                updateLastAccess(entry.mId);
+                return entry;
+            }
+
+            // Finally, we need to download the file ....
+            // First check if we are downloading it now ...
+            DownloadTask task = mTaskMap.get(stringUrl);
+            if (task == null) { // if not, start the download task now
+                task = new DownloadTask(stringUrl);
+                mTaskMap.put(stringUrl, task);
+                task.mFuture = mApplication.getThreadPool().submit(task, task);
+            }
+            task.addProxy(proxy);
+        }
+
+        return proxy.get(jc);
+    }
+
+    private void updateLastAccess(long id) {
+        ContentValues values = new ContentValues();
+        values.put(Columns.LAST_ACCESS, System.currentTimeMillis());
+        mDatabase.update(TABLE_NAME, values,
+                ID_WHERE, new String[] {String.valueOf(id)});
+    }
+
+    private synchronized void freeSomeSpaceIfNeed(int maxDeleteFileCount) {
+        if (mTotalBytes <= mCapacity) return;
+        Cursor cursor = mDatabase.query(TABLE_NAME,
+                FREESPACE_PROJECTION, null, null, null, null, FREESPACE_ORDER_BY);
+        try {
+            while (maxDeleteFileCount > 0
+                    && mTotalBytes > mCapacity && cursor.moveToNext()) {
+                long id = cursor.getLong(FREESPACE_IDNEX_ID);
+                String url = cursor.getString(FREESPACE_INDEX_CONTENT_URL);
+                long size = cursor.getLong(FREESPACE_INDEX_CONTENT_SIZE);
+                String path = cursor.getString(FREESPACE_IDNEX_DATA);
+                boolean containsKey;
+                synchronized (mEntryMap) {
+                    containsKey = mEntryMap.containsKey(url);
+                }
+                if (!containsKey) {
+                    --maxDeleteFileCount;
+                    mTotalBytes -= size;
+                    new File(path).delete();
+                    mDatabase.delete(TABLE_NAME,
+                            ID_WHERE, new String[]{String.valueOf(id)});
+                } else {
+                    // skip delete, since it is being used
+                }
+            }
+        } finally {
+            cursor.close();
+        }
+    }
+
+    private synchronized long insertEntry(String url, File file) {
+        long size = file.length();
+        mTotalBytes += size;
+
+        ContentValues values = new ContentValues();
+        String hashCode = String.valueOf(Utils.crc64Long(url));
+        values.put(Columns.DATA, file.getAbsolutePath());
+        values.put(Columns.HASH_CODE, hashCode);
+        values.put(Columns.CONTENT_URL, url);
+        values.put(Columns.CONTENT_SIZE, size);
+        values.put(Columns.LAST_UPDATED, System.currentTimeMillis());
+        return mDatabase.insert(TABLE_NAME, "", values);
+    }
+
+    private synchronized void initialize() {
+        if (mInitialized) return;
+        mInitialized = true;
+        if (!mRoot.isDirectory()) mRoot.mkdirs();
+        if (!mRoot.isDirectory()) {
+            throw new RuntimeException("cannot create " + mRoot.getAbsolutePath());
+        }
+
+        Cursor cursor = mDatabase.query(
+                TABLE_NAME, SUM_PROJECTION, null, null, null, null, null);
+        mTotalBytes = 0;
+        try {
+            if (cursor.moveToNext()) {
+                mTotalBytes = cursor.getLong(SUM_INDEX_SUM);
+            }
+        } finally {
+            cursor.close();
+        }
+        if (mTotalBytes > mCapacity) freeSomeSpaceIfNeed(MAX_DELETE_COUNT);
+    }
+
+    private final class DatabaseHelper extends SQLiteOpenHelper {
+        public static final String DATABASE_NAME = "download.db";
+        public static final int DATABASE_VERSION = 2;
+
+        public DatabaseHelper(Context context) {
+            super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        }
+
+        @Override
+        public void onCreate(SQLiteDatabase db) {
+            DownloadEntry.SCHEMA.createTables(db);
+            // Delete old files
+            for (File file : mRoot.listFiles()) {
+                if (!file.delete()) {
+                    Log.w(TAG, "fail to remove: " + file.getAbsolutePath());
+                }
+            }
+        }
+
+        @Override
+        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+            //reset everything
+            DownloadEntry.SCHEMA.dropTables(db);
+            onCreate(db);
+        }
+    }
+
+    public class Entry {
+        public File cacheFile;
+        protected long mId;
+
+        Entry(long id, File cacheFile) {
+            mId = id;
+            this.cacheFile = Utils.checkNotNull(cacheFile);
+        }
+    }
+
+    private class DownloadTask implements Job<File>, FutureListener<File> {
+        private HashSet<TaskProxy> mProxySet = new HashSet<TaskProxy>();
+        private Future<File> mFuture;
+        private final String mUrl;
+
+        public DownloadTask(String url) {
+            mUrl = Utils.checkNotNull(url);
+        }
+
+        public void removeProxy(TaskProxy proxy) {
+            synchronized (mTaskMap) {
+                Utils.assertTrue(mProxySet.remove(proxy));
+                if (mProxySet.isEmpty()) {
+                    mFuture.cancel();
+                    mTaskMap.remove(mUrl);
+                }
+            }
+        }
+
+        // should be used in synchronized block of mDatabase
+        public void addProxy(TaskProxy proxy) {
+            proxy.mTask = this;
+            mProxySet.add(proxy);
+        }
+
+        @Override
+        public void onFutureDone(Future<File> future) {
+            File file = future.get();
+            long id = 0;
+            if (file != null) { // insert to database
+                id = insertEntry(mUrl, file);
+            }
+
+            if (future.isCancelled()) {
+                Utils.assertTrue(mProxySet.isEmpty());
+                return;
+            }
+
+            synchronized (mTaskMap) {
+                Entry entry = null;
+                synchronized (mEntryMap) {
+                    if (file != null) {
+                        entry = new Entry(id, file);
+                        Utils.assertTrue(mEntryMap.put(mUrl, entry) == null);
+                    }
+                }
+                for (TaskProxy proxy : mProxySet) {
+                    proxy.setResult(entry);
+                }
+                mTaskMap.remove(mUrl);
+                freeSomeSpaceIfNeed(MAX_DELETE_COUNT);
+            }
+        }
+
+        @Override
+        public File run(JobContext jc) {
+            // TODO: utilize etag
+            jc.setMode(ThreadPool.MODE_NETWORK);
+            File tempFile = null;
+            try {
+                URL url = new URL(mUrl);
+                tempFile = File.createTempFile("cache", ".tmp", mRoot);
+                // download from url to tempFile
+                jc.setMode(ThreadPool.MODE_NETWORK);
+                boolean downloaded = DownloadUtils.requestDownload(jc, url, tempFile);
+                jc.setMode(ThreadPool.MODE_NONE);
+                if (downloaded) return tempFile;
+            } catch (Exception e) {
+                Log.e(TAG, String.format("fail to download %s", mUrl), e);
+            } finally {
+                jc.setMode(ThreadPool.MODE_NONE);
+            }
+            if (tempFile != null) tempFile.delete();
+            return null;
+        }
+    }
+
+    public static class TaskProxy {
+        private DownloadTask mTask;
+        private boolean mIsCancelled = false;
+        private Entry mEntry;
+
+        synchronized void setResult(Entry entry) {
+            if (mIsCancelled) return;
+            mEntry = entry;
+            notifyAll();
+        }
+
+        public synchronized Entry get(JobContext jc) {
+            jc.setCancelListener(new CancelListener() {
+                @Override
+                public void onCancel() {
+                    mTask.removeProxy(TaskProxy.this);
+                    synchronized (TaskProxy.this) {
+                        mIsCancelled = true;
+                        TaskProxy.this.notifyAll();
+                    }
+                }
+            });
+            while (!mIsCancelled && mEntry == null) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    Log.w(TAG, "ignore interrupt", e);
+                }
+            }
+            jc.setCancelListener(null);
+            return mEntry;
+        }
+    }
+}
+
+/*
+ * Copyright (C) 2010 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+import com.android.gallery3d.common.Utils;
+import com.android.gallery3d.util.ThreadPool.CancelListener;
+import com.android.gallery3d.util.ThreadPool.JobContext;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InterruptedIOException;
+import java.io.OutputStream;
+import java.net.URL;
+
+public class DownloadUtils {
+    private static final String TAG = "DownloadService";
+
+    public static boolean requestDownload(JobContext jc, URL url, File file) {
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(file);
+            return download(jc, url, fos);
+        } catch (Throwable t) {
+            return false;
+        } finally {
+            Utils.closeSilently(fos);
+        }
+    }
+
+    public static void dump(JobContext jc, InputStream is, OutputStream os)
+            throws IOException {
+        byte buffer[] = new byte[4096];
+        int rc = is.read(buffer, 0, buffer.length);
+        final Thread thread = Thread.currentThread();
+        jc.setCancelListener(new CancelListener() {
+            @Override
+            public void onCancel() {
+                thread.interrupt();
+            }
+        });
+        while (rc > 0) {
+            if (jc.isCancelled()) throw new InterruptedIOException();
+            os.write(buffer, 0, rc);
+            rc = is.read(buffer, 0, buffer.length);
+        }
+        jc.setCancelListener(null);
+        Thread.interrupted(); // consume the interrupt signal
+    }
+
+    public static boolean download(JobContext jc, URL url, OutputStream output) {
+        InputStream input = null;
+        try {
+            input = url.openStream();
+            dump(jc, input, output);
+            return true;
+        } catch (Throwable t) {
+            Log.w(TAG, "fail to download", t);
+            return false;
+        } finally {
+            Utils.closeSilently(input);
+        }
+    }
+}
+
+/*
+ * Copyright (C) 2010 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+import android.annotation.TargetApi;
+import android.graphics.Bitmap;
+import android.graphics.Bitmap.Config;
+import android.graphics.BitmapFactory;
+import android.graphics.BitmapFactory.Options;
+import android.graphics.BitmapRegionDecoder;
+import android.os.Build;
+import android.util.FloatMath;
+
+import com.android.gallery3d.common.ApiHelper;
+import com.android.gallery3d.common.BitmapUtils;
+import com.android.gallery3d.common.Utils;
+import com.android.gallery3d.ui.Log;
+import com.android.gallery3d.util.ThreadPool.CancelListener;
+import com.android.gallery3d.util.ThreadPool.JobContext;
+
+import java.io.FileDescriptor;
+import java.io.FileInputStream;
+import java.io.InputStream;
+
+public class DecodeUtils {
+    private static final String TAG = "DecodeUtils";
+
+    private static class DecodeCanceller implements CancelListener {
+        Options mOptions;
+
+        public DecodeCanceller(Options options) {
+            mOptions = options;
+        }
+
+        @Override
+        public void onCancel() {
+            mOptions.requestCancelDecode();
+        }
+    }
+
+    @TargetApi(ApiHelper.VERSION_CODES.HONEYCOMB)
+    public static void setOptionsMutable(Options options) {
+        if (ApiHelper.HAS_OPTIONS_IN_MUTABLE) options.inMutable = true;
+    }
+
+    public static Bitmap decode(JobContext jc, FileDescriptor fd, Options options) {
+        if (options == null) options = new Options();
+        jc.setCancelListener(new DecodeCanceller(options));
+        setOptionsMutable(options);
+        return ensureGLCompatibleBitmap(
+                BitmapFactory.decodeFileDescriptor(fd, null, options));
+    }
+
+    public static void decodeBounds(JobContext jc, FileDescriptor fd,
+            Options options) {
+        Utils.assertTrue(options != null);
+        options.inJustDecodeBounds = true;
+        jc.setCancelListener(new DecodeCanceller(options));
+        BitmapFactory.decodeFileDescriptor(fd, null, options);
+        options.inJustDecodeBounds = false;
+    }
+
+    public static Bitmap decode(JobContext jc, byte[] bytes, Options options) {
+        return decode(jc, bytes, 0, bytes.length, options);
+    }
+
+    public static Bitmap decode(JobContext jc, byte[] bytes, int offset,
+            int length, Options options) {
+        if (options == null) options = new Options();
+        jc.setCancelListener(new DecodeCanceller(options));
+        setOptionsMutable(options);
+        return ensureGLCompatibleBitmap(
+                BitmapFactory.decodeByteArray(bytes, offset, length, options));
+    }
+
+    public static void decodeBounds(JobContext jc, byte[] bytes, int offset,
+            int length, Options options) {
+        Utils.assertTrue(options != null);
+        options.inJustDecodeBounds = true;
+        jc.setCancelListener(new DecodeCanceller(options));
+        BitmapFactory.decodeByteArray(bytes, offset, length, options);
+        options.inJustDecodeBounds = false;
+    }
+
+    public static Bitmap decodeThumbnail(
+            JobContext jc, String filePath, Options options, int targetSize, int type) {
+        FileInputStream fis = null;
+        try {
+            fis = new FileInputStream(filePath);
+            FileDescriptor fd = fis.getFD();
+            return decodeThumbnail(jc, fd, options, targetSize, type);
+        } catch (Exception ex) {
+            Log.w(TAG, ex);
+            return null;
+        } finally {
+            Utils.closeSilently(fis);
+        }
+    }
+
+    public static Bitmap decodeThumbnail(
+            JobContext jc, FileDescriptor fd, Options options, int targetSize, int type) {
+        if (options == null) options = new Options();
+        jc.setCancelListener(new DecodeCanceller(options));
+
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFileDescriptor(fd, null, options);
+        if (jc.isCancelled()) return null;
+
+        int w = options.outWidth;
+        int h = options.outHeight;
+
+        if (type == MediaItem.TYPE_MICROTHUMBNAIL) {
+            // We center-crop the original image as it's micro thumbnail. In this case,
+            // we want to make sure the shorter side >= "targetSize".
+            float scale = (float) targetSize / Math.min(w, h);
+            options.inSampleSize = BitmapUtils.computeSampleSizeLarger(scale);
+
+            // For an extremely wide image, e.g. 300x30000, we may got OOM when decoding
+            // it for TYPE_MICROTHUMBNAIL. So we add a max number of pixels limit here.
+            final int MAX_PIXEL_COUNT = 640000; // 400 x 1600
+            if ((w / options.inSampleSize) * (h / options.inSampleSize) > MAX_PIXEL_COUNT) {
+                options.inSampleSize = BitmapUtils.computeSampleSize(
+                        FloatMath.sqrt((float) MAX_PIXEL_COUNT / (w * h)));
+            }
+        } else {
+            // For screen nail, we only want to keep the longer side >= targetSize.
+            float scale = (float) targetSize / Math.max(w, h);
+            options.inSampleSize = BitmapUtils.computeSampleSizeLarger(scale);
+        }
+
+        options.inJustDecodeBounds = false;
+        setOptionsMutable(options);
+
+        Bitmap result = BitmapFactory.decodeFileDescriptor(fd, null, options);
+        if (result == null) return null;
+
+        // We need to resize down if the decoder does not support inSampleSize
+        // (For example, GIF images)
+        float scale = (float) targetSize / (type == MediaItem.TYPE_MICROTHUMBNAIL
+                ? Math.min(result.getWidth(), result.getHeight())
+                : Math.max(result.getWidth(), result.getHeight()));
+
+        if (scale <= 0.5) result = BitmapUtils.resizeBitmapByScale(result, scale, true);
+        return ensureGLCompatibleBitmap(result);
+    }
+
+    /**
+     * Decodes the bitmap from the given byte array if the image size is larger than the given
+     * requirement.
+     *
+     * Note: The returned image may be resized down. However, both width and height must be
+     * larger than the <code>targetSize</code>.
+     */
+    public static Bitmap decodeIfBigEnough(JobContext jc, byte[] data,
+            Options options, int targetSize) {
+        if (options == null) options = new Options();
+        jc.setCancelListener(new DecodeCanceller(options));
+
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeByteArray(data, 0, data.length, options);
+        if (jc.isCancelled()) return null;
+        if (options.outWidth < targetSize || options.outHeight < targetSize) {
+            return null;
+        }
+        options.inSampleSize = BitmapUtils.computeSampleSizeLarger(
+                options.outWidth, options.outHeight, targetSize);
+        options.inJustDecodeBounds = false;
+        setOptionsMutable(options);
+
+        return ensureGLCompatibleBitmap(
+                BitmapFactory.decodeByteArray(data, 0, data.length, options));
+    }
+
+    // TODO: This function should not be called directly from
+    // DecodeUtils.requestDecode(...), since we don't have the knowledge
+    // if the bitmap will be uploaded to GL.
+    public static Bitmap ensureGLCompatibleBitmap(Bitmap bitmap) {
+        if (bitmap == null || bitmap.getConfig() != null) return bitmap;
+        Bitmap newBitmap = bitmap.copy(Config.ARGB_8888, false);
+        bitmap.recycle();
+        return newBitmap;
+    }
+
+    public static BitmapRegionDecoder createBitmapRegionDecoder(
+            JobContext jc, byte[] bytes, int offset, int length,
+            boolean shareable) {
+        if (offset < 0 || length <= 0 || offset + length > bytes.length) {
+            throw new IllegalArgumentException(String.format(
+                    "offset = %s, length = %s, bytes = %s",
+                    offset, length, bytes.length));
+        }
+
+        try {
+            return BitmapRegionDecoder.newInstance(
+                    bytes, offset, length, shareable);
+        } catch (Throwable t)  {
+            Log.w(TAG, t);
+            return null;
+        }
+    }
+
+    public static BitmapRegionDecoder createBitmapRegionDecoder(
+            JobContext jc, String filePath, boolean shareable) {
+        try {
+            return BitmapRegionDecoder.newInstance(filePath, shareable);
+        } catch (Throwable t)  {
+            Log.w(TAG, t);
+            return null;
+        }
+    }
+
+    public static BitmapRegionDecoder createBitmapRegionDecoder(
+            JobContext jc, FileDescriptor fd, boolean shareable) {
+        try {
+            return BitmapRegionDecoder.newInstance(fd, shareable);
+        } catch (Throwable t)  {
+            Log.w(TAG, t);
+            return null;
+        }
+    }
+
+    public static BitmapRegionDecoder createBitmapRegionDecoder(
+            JobContext jc, InputStream is, boolean shareable) {
+        try {
+            return BitmapRegionDecoder.newInstance(is, shareable);
+        } catch (Throwable t)  {
+            // We often cancel the creating of bitmap region decoder,
+            // so just log one line.
+            Log.w(TAG, "requestCreateBitmapRegionDecoder: " + t);
+            return null;
+        }
+    }
+
+    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
+    public static Bitmap decode(JobContext jc, byte[] data, int offset,
+            int length, BitmapFactory.Options options, BitmapPool pool) {
+        if (pool == null) {
+            return decode(jc, data, offset, length, options);
+        }
+
+        if (options == null) options = new BitmapFactory.Options();
+        if (options.inSampleSize < 1) options.inSampleSize = 1;
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        options.inBitmap = (options.inSampleSize == 1)
+                ? findCachedBitmap(pool, jc, data, offset, length, options) : null;
+        try {
+            Bitmap bitmap = decode(jc, data, offset, length, options);
+            if (options.inBitmap != null && options.inBitmap != bitmap) {
+                pool.recycle(options.inBitmap);
+                options.inBitmap = null;
+            }
+            return bitmap;
+        } catch (IllegalArgumentException e) {
+            if (options.inBitmap == null) throw e;
+
+            Log.w(TAG, "decode fail with a given bitmap, try decode to a new bitmap");
+            pool.recycle(options.inBitmap);
+            options.inBitmap = null;
+            return decode(jc, data, offset, length, options);
+        }
+    }
+
+    // This is the same as the method above except the source data comes
+    // from a file descriptor instead of a byte array.
+    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
+    public static Bitmap decode(JobContext jc,
+            FileDescriptor fileDescriptor, Options options, BitmapPool pool) {
+        if (pool == null) {
+            return decode(jc, fileDescriptor, options);
+        }
+
+        if (options == null) options = new BitmapFactory.Options();
+        if (options.inSampleSize < 1) options.inSampleSize = 1;
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        options.inBitmap = (options.inSampleSize == 1)
+                ? findCachedBitmap(pool, jc, fileDescriptor, options) : null;
+        try {
+            Bitmap bitmap = DecodeUtils.decode(jc, fileDescriptor, options);
+            if (options.inBitmap != null && options.inBitmap != bitmap) {
+                pool.recycle(options.inBitmap);
+                options.inBitmap = null;
+            }
+            return bitmap;
+        } catch (IllegalArgumentException e) {
+            if (options.inBitmap == null) throw e;
+
+            Log.w(TAG, "decode fail with a given bitmap, try decode to a new bitmap");
+            pool.recycle(options.inBitmap);
+            options.inBitmap = null;
+            return decode(jc, fileDescriptor, options);
+        }
+    }
+
+    private static Bitmap findCachedBitmap(BitmapPool pool, JobContext jc,
+            byte[] data, int offset, int length, Options options) {
+        if (pool.isOneSize()) return pool.getBitmap();
+        decodeBounds(jc, data, offset, length, options);
+        return pool.getBitmap(options.outWidth, options.outHeight);
+    }
+
+    private static Bitmap findCachedBitmap(BitmapPool pool, JobContext jc,
+            FileDescriptor fileDescriptor, Options options) {
+        if (pool.isOneSize()) return pool.getBitmap();
+        decodeBounds(jc, fileDescriptor, options);
+        return pool.getBitmap(options.outWidth, options.outHeight);
+    }
+}
+
