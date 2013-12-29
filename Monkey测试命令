@@ -1,0 +1,6 @@
+使用Monkey可以压力测试app，命令如下：
+adb shell monkey -p com.gangyun.camera 20000
+
+解释下：
+-p：指定待测试的程序，如：com.gangyun.camera
+20000：跑20000次，每次点击为一次
