@@ -1,0 +1,1259 @@
+/*
+ * Copyright (c) 2012 Thunder Software Technology Co.,Ltd.
+ * All Rights Reserved.
+ * Thundersoft Confidential and Proprietary.
+ * Developed by Thundersoft Engineering team.
+ */
+package com.android.gallery3d.gif;
+
+import java.io.InputStream;
+import java.util.Vector;
+
+import android.R.integer;
+import android.graphics.Bitmap;
+import android.graphics.Bitmap.Config;
+import android.util.Log;
+
+public class GifDecoder {
+    private static final boolean VERBOSE = true;
+    /**
+     * The following is the decoder's status
+     */
+    public static final int _STATUS_OK = 0;
+
+    /**
+     * _STATUS_FORMAT_ERROR
+     */
+    public static final int _STATUS_FORMAT_ERROR = 1000;
+
+    /**
+     * _STATUS_OPEN_ERROR
+     */
+    public static final int _STATUS_OPEN_ERROR = 2000;
+
+    private static final String TAG = "GifDecoder";
+
+    protected int mWidth;
+
+    protected int mHeight;
+
+    // global color table used
+    protected boolean mGctFlag;
+
+    // size of global color table
+    protected int mGctSize;
+
+    // iterations; 0 = repeat forever
+    protected int mLoopCount = 1;
+
+    protected InputStream mInputStream;
+
+    protected int mStatus;
+
+    // global color table
+    protected int[] mGct;
+
+    // local color table
+    protected int[] mLct;
+
+    // active color table
+    protected int[] mAct;
+
+    // background color index
+    protected int mBgIndex;
+
+    // background color
+    protected int mBgColor;
+
+    // previous bg color
+    protected int mLastBgColor;
+
+    // pixel aspect ratio
+    protected int mPixelAspect;
+
+    // local color table flag
+    protected boolean mLctFlag;
+
+    // interlace flag
+    protected boolean mInterlace;
+
+    // local color table size
+    protected int mLctSize;
+
+    // current image rectangle
+    protected int mIx, mIy, mIw, mIh;
+
+    protected int mLrx, mLry, mLrw, mLrh;
+
+    protected Bitmap mImage; // current frame
+
+    protected Bitmap mLastImage; // previous frame
+
+    protected int mFrameindex = 0;
+
+    protected static final int WAIT_TIME = 10;
+    protected final int HEAD_FRAME_COUNT = 0;
+
+    /**
+     *
+     * @return int
+     */
+    public int getFrameindex() {
+        return mFrameindex;
+    }
+
+    /**
+     *
+     * @param frameindex frameindex
+     */
+    public void setFrameindex(int frameindex) {
+        this.mFrameindex = frameindex;
+        if (frameindex > mFrames.size() - 1) {
+            frameindex = 0;
+        }
+    }
+
+    protected byte[] mBlock = new byte[256]; // current data block
+
+    protected int mBlockSize = 0; // block size
+
+    // last graphic control extension info
+    protected int mDispose = 0;
+
+    /*
+     * 0=no action; 1=leave in place; 2=restore to bg; 3=restore to prev
+     */
+    protected int mLastDispose = 0;
+
+    protected boolean mTransparency = false; // use transparent color
+
+    protected int mDelay = 0; // delay in milliseconds
+
+    protected int mTransIndex; // transparent color index
+
+    // max decoder pixel stack size
+    protected static final int MaxStackSize = 4096;
+
+    // LZW decoder working arrays
+    protected short[] mPrefix;
+
+    protected byte[] mSuffix;
+
+    protected byte[] mPixelStack;
+
+    protected byte[] mPixels;
+
+    protected Vector mFrames; // frames read from current file
+
+    protected int mFrameCount = 0;
+    protected boolean mUnDecode = false;
+
+    /**
+     *
+     * @author owen
+     *
+     */
+    static class GifFrame {
+        public GifFrame(Bitmap im, int del) {
+            image = im;
+            delay = del;
+        }
+
+        public Bitmap image;
+
+        public int delay;
+    }
+
+    /**
+     *
+     * @this function must be called before getNext
+     * @return int
+     */
+    public synchronized int getDelay() {
+        mDelay = -1;
+        if (null != mFrames && mFrames.size()>0) {
+            mDelay = ((GifFrame) mFrames.elementAt(0)).delay;
+        }
+        return mDelay;
+    }
+
+    /**
+     *
+     * @return int
+     */
+    public int getFrameCount() {
+        return mFrameCount;
+    }
+
+    public synchronized int getLeftFrameCount() {
+        if(mFrames == null)return 0;
+
+        return mFrames.size();
+    }
+
+    /**
+     *
+     * @return Bitmap
+     */
+    public Bitmap getImage() {
+         Bitmap im = null;
+        if(null != mFrames && mFrames.size()>0 ) {
+           im = ((GifFrame) mFrames.elementAt(0)).image;
+        }
+        return im;
+    }
+
+    /**
+     *
+     * @return int
+     */
+    public int getLoopCount() {
+        return mLoopCount;
+    }
+
+    protected void setPixels() {
+        if(VERBOSE)
+            Log.d(TAG, "setPixels(): mWidth = " + mWidth + ", mHeight = " + mHeight);
+        int[] dest = new int[mWidth * mHeight];
+        // Log.d(TAG,
+        // "fill in starting image contents based on last image's dispose code");
+        if (mLastDispose > 0) {
+            if (mLastDispose == 3) {
+                // use image before last
+                int n = mFrameCount - 2;
+                if (n > 0) {
+                    mLastImage = getFrame(n - 1);
+                } else {
+                    mLastImage = null;
+                }
+            }
+
+            if (mLastImage != null) {
+                mLastImage.getPixels(dest, 0, mWidth, 0, 0, mWidth, mHeight);
+                // copy pixels
+                if (mLastDispose == 2) {
+                    // Log.d(TAG,
+                    // "fill last image rect area with background color");
+                    int c = 0;
+                    if (!mTransparency) {
+                        c = mLastBgColor;
+                    }
+                    for (int i = 0; i < mLrh; i++) {
+                        int n1 = (mLry + i) * mWidth + mLrx;
+                        int n2 = n1 + mLrw;
+                        for (int k = n1; k < n2; k++) {
+                            dest[k] = c;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Log.d(TAG,
+        // "copy each source line to the appropriate place in the destination");
+        int pass = 1;
+        int inc = 8;
+        int iline = 0;
+        for (int i = 0; i < mIh; i++) {
+            int line = i;
+            if (mInterlace) {
+                if (iline >= mIh) {
+                    pass++;
+                    switch (pass) {
+                        case 2:
+                            iline = 4;
+                            break;
+
+                        case 3:
+                            iline = 2;
+                            inc = 4;
+                            break;
+
+                        case 4:
+                            iline = 1;
+                            inc = 2;
+                            break;
+                        default :
+                            break;
+                    }
+                }
+                line = iline;
+                iline += inc;
+            }
+
+            line += mIy;
+            if (line < mHeight) {
+                int k = line * mWidth;
+                int dx = k + mIx; // start of line in dest
+                int dlim = dx + mIw; // end of dest line
+                if ((k + mWidth) < dlim) {
+                    dlim = k + mWidth; // past dest edge
+                }
+                int sx = i * mIw; // start of line in source
+                while (dx < dlim) {
+                    // Log.d(TAG, "map color and insert in destination");
+                    int index = ((int) mPixels[sx++]) & 0xff;
+                    int c = mAct[index];
+                    if (c != 0) {
+                        dest[dx] = c;
+                    }
+                    dx++;
+                }
+            }
+        }
+
+        try {
+            mImage = Bitmap.createBitmap(dest, mWidth, mHeight, Config.RGB_565);
+        }catch (Exception e) {
+            // e.printStackTrace();
+        }
+        dest = null;
+    }
+
+    public synchronized Bitmap getHeadFrame() {
+        return getNextFrame();
+    }
+
+    /**
+     *
+     * @return Bitmap
+     */
+    public synchronized Bitmap getNextFrame() {
+        Bitmap im = null;
+        if(null != mFrames && mFrames.size()>0 ) {
+           im = ((GifFrame) mFrames.elementAt(0)).image;
+       //    mFrames.remove(0);
+        }
+        return im;
+    }
+
+    public synchronized void releaseFrame() {
+         if(mFrames == null)return;
+
+         if(mFrames.size()>0 ) {
+            GifFrame frame = (GifFrame)mFrames.remove(0);
+	     frame = null;
+         }
+    }
+
+    private synchronized Bitmap getFrame (int n ) {
+        Bitmap im = null;
+        if(null != mFrames && n>0 && n<mFrames.size())
+            im = ((GifFrame) mFrames.elementAt(n)).image;
+        return im;
+    }
+    /**
+     *
+     * @param is is
+     * @return int
+     */
+    public int readContent(InputStream is,boolean bPrepared, boolean bRepeat) {
+        if(bPrepared)
+            init(bRepeat);
+        if (is != null) {
+            if(bPrepared){
+                mInputStream = is;
+                readHeader();
+            }
+            if ((bPrepared && !getErrorStatus()) || !bPrepared) {
+                readContents(bPrepared);
+                if (mFrameCount < 0) {
+                    mStatus = _STATUS_FORMAT_ERROR;
+                }
+            }
+        } else {
+            mStatus = _STATUS_OPEN_ERROR;
+        }
+        if(!bPrepared)
+        try {
+            is.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return mStatus;
+    }
+    //this function is needed to optimize in order to reduce time
+    public boolean isSingleFrame (InputStream is) {
+        mUnDecode = true;
+        init(false);
+        mInputStream = is;
+        if(mInputStream == null)
+            return false;
+        readHeader();
+        readContents(false);
+        try {
+            is.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        mUnDecode = false;
+        return mFrameCount == 1 && getLoopCount() != 0 ? true:false;
+    }
+
+    public boolean isGIF(InputStream is) {
+        boolean bRet = false;
+        mInputStream = is;
+        if(mInputStream == null)
+            return bRet;
+        String id = "";
+        for (int i = 0; i < 6; i++) {
+            id += (char) readContent();
+        }
+
+        if (id.startsWith("GIF")) {
+            Log.e(TAG, "not start with GIF");
+            bRet = true;
+        }
+        return bRet;
+    }
+
+    protected void decodeImageData() {
+        int null_code = -1;
+        int npix = mIw * mIh;
+        int available, clear, code_mask, code_size, end_of_information, in_code, old_code, bits, code, count, i, datum, data_size, first, top, bi, pi;
+
+        if ((mPixels == null) || (mPixels.length < npix)) {
+            // Log.d(TAG, "allocate new pixel array");
+            mPixels = null;
+            mPixels = new byte[npix];
+        }
+
+        if (mPrefix == null) {
+            mPrefix = new short[MaxStackSize];
+        }
+
+        if (mSuffix == null) {
+            mSuffix = new byte[MaxStackSize];
+        }
+
+        if (mPixelStack == null) {
+            mPixelStack = new byte[MaxStackSize + 1];
+        }
+
+        // Log.d(TAG, "Initialize GIF data stream decoder.");
+        data_size = readContent();
+        clear = 1 << data_size;
+        end_of_information = clear + 1;
+
+        available = clear + 2;
+        old_code = null_code;
+        code_size = data_size + 1;
+        code_mask = (1 << code_size) - 1;
+
+        for (code = 0; code < clear; code++) {
+            mPrefix[code] = 0;
+            mSuffix[code] = (byte) code;
+        }
+
+        // Log.d(TAG, "Decode  gif pixel stream.");
+        datum = bits = count = first = top = pi = bi = 0;
+        for (i = 0; i < npix;) {
+            if (top == 0) {
+                if (bits < code_size) {
+                    // Log.d(TAG,
+                    // "Load bytes until there are enough bits for a code.");
+                    if (count == 0) {
+                        // Log.d(TAG, "Read a new data block.");
+                        count = readBlock();
+                        if (count <= 0) {
+                            break;
+                        }
+                        bi = 0;
+                    }
+                    datum += (((int) mBlock[bi]) & 0xff) << bits;
+                    bits += 8;
+                    bi++;
+                    count--;
+                    continue;
+                }
+
+                // Log.d(TAG, "Get the next code.");
+                code = datum & code_mask;
+                datum >>= code_size;
+                bits -= code_size;
+
+                // Log.d(TAG, "Interpret the code");
+                if ((code > available) || (code == end_of_information)) {
+                    break;
+                }
+                if (code == clear) {
+                    // Log.d(TAG, "Reset decoder.");
+                    code_size = data_size + 1;
+                    code_mask = (1 << code_size) - 1;
+                    available = clear + 2;
+                    old_code = null_code;
+                    continue;
+                }
+                if (old_code == null_code) {
+                    mPixelStack[top++] = mSuffix[code];
+                    old_code = code;
+                    first = code;
+                    continue;
+                }
+                in_code = code;
+                if (code == available) {
+                    mPixelStack[top++] = (byte) first;
+                    code = old_code;
+                }
+                while (code > clear) {
+                    mPixelStack[top++] = mSuffix[code];
+                    code = mPrefix[code];
+                }
+                first = ((int) mSuffix[code]) & 0xff;
+
+                // Log.d(TAG, "Add a new string to the string table");
+                if (available >= MaxStackSize) {
+                    break;
+                }
+                mPixelStack[top++] = (byte) first;
+                mPrefix[available] = (short) old_code;
+                mSuffix[available] = (byte) first;
+                available++;
+                if (((available & code_mask) == 0) && (available < MaxStackSize)) {
+                    code_size++;
+                    code_mask += available;
+                }
+                old_code = in_code;
+            }
+
+            // Log.d(TAG, "Pop a pixel off the pixel stack.");
+            top--;
+            mPixels[pi++] = mPixelStack[top];
+            i++;
+        }
+        for (i = pi; i < npix; i++) {
+            // Log.d(TAG, "clear missing pixels");
+            mPixels[i] = 0;
+        }
+    }
+
+    protected boolean getErrorStatus() {
+        return mStatus != _STATUS_OK;
+    }
+
+    protected void init(boolean bRepeat) {
+        mStatus = _STATUS_OK;
+        mFrameCount = 0;
+        if(!bRepeat)
+            mFrames = new Vector();
+        mGct = null;
+        mLct = null;
+    }
+
+    protected int readContent() {
+        int currentByte = 0;
+        try {
+            currentByte = mInputStream.read();
+        } catch (Exception e) {
+            mStatus = _STATUS_FORMAT_ERROR;
+        }
+        return currentByte;
+    }
+
+    protected int readBlock() {
+        mBlockSize = readContent();
+        int n = 0;
+
+        if (mBlockSize > 0) {
+            try {
+                int count = 0;
+                while (n < mBlockSize) {
+                    count = mInputStream.read(mBlock, n, mBlockSize - n);
+
+                    if (count == -1) {
+                        break;
+                    }
+                    n += count;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            if (n < mBlockSize) {
+                mStatus = _STATUS_FORMAT_ERROR;
+            }
+        }
+        return n;
+    }
+
+    protected int[] readColorTable(int colors) {
+        int bytes = 3 * colors;
+        int[] tab = null;
+        byte[] bytesArray = new byte[bytes];
+        int n = 0;
+
+        try {
+            n = mInputStream.read(bytesArray);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        if (n < bytes) {
+            mStatus = _STATUS_FORMAT_ERROR;
+        } else {
+            // Log.d(TAG, "max size to avoid bounds checks");
+            tab = new int[256];
+
+            int i = 0;
+            int j = 0;
+            while (i < colors) {
+                int r = ((int) bytesArray[j++]) & 0xff;
+                int g = ((int) bytesArray[j++]) & 0xff;
+                int b = ((int) bytesArray[j++]) & 0xff;
+                tab[i++] = 0xff000000 | (r << 16) | (g << 8) | b;
+            }
+        }
+	bytesArray = null;
+        return tab;
+    }
+    // if done is true then stop read the Image
+    private boolean done;
+
+    public void setDone(boolean done) {
+		this.done = done;
+	}
+
+	protected void readContents(boolean bPrepared) {
+        // read Gif file content blocks
+       // done = false;
+        boolean exit = false;
+        while (!(done || exit ||getErrorStatus())) {
+            if(bPrepared && mFrameCount > HEAD_FRAME_COUNT)
+                break;
+            if(mUnDecode && mFrameCount>HEAD_FRAME_COUNT+1)
+                break;
+            if(mFrames.size() >HEAD_FRAME_COUNT) {
+                try{
+                    Thread.sleep(WAIT_TIME);
+                    continue;
+                }catch(Exception e){
+                }
+            }
+
+            int code = readContent();
+
+            switch (code) {
+                case 0x2C: // image separator
+                    readImage();
+                    break;
+
+                case 0x21: // extension
+                    code = readContent();
+                    switch (code) {
+                        case 0xf9: // graphics control extension
+                            readGraphicControlExt();
+                            break;
+
+                        case 0xff: // application extension
+                            readBlock();
+                            String app = "";
+                            for (int i = 0; i < 11; i++) {
+                                app += (char) mBlock[i];
+                            }
+                            if (app.equals("NETSCAPE2.0")) {
+                                /*
+                                 * we can follow
+                                 * http://odur.let.rug.nl/~kleiweg/
+                                 * gif/netscape.html for reference
+                                 */
+                                readNetscapeExt();
+                            } else {
+                                skip(); // don't care
+                            }
+                            break;
+
+                        default: // uninteresting extension
+                            skip();
+                    }
+                    break;
+
+                case 0x3b:
+                    Log.d(TAG, "terminator, decode succeed");
+                    exit = true;
+                    break;
+
+                case 0x00:
+                    // Log.d(TAG,
+                    // "bad byte, but keep going and see what happens");
+                    break;
+
+                default:
+                    mStatus = _STATUS_FORMAT_ERROR;
+            }
+        }
+    }
+
+    protected void readGraphicControlExt() {
+        readContent(); // block size
+        int packed = readContent(); // packed fields
+
+        mDispose = (packed & 0x1c) >> 2; // disposal method
+        if (mDispose == 0) {
+            // Log.d(TAG, "select to keep old image if discretionary");
+            mDispose = 1;
+        }
+        mTransparency = (packed & 1) != 0;
+        mDelay = readShort() * 10; // delay in milliseconds
+        mTransIndex = readContent(); // transparent color index
+        readContent(); // block terminator
+    }
+
+    protected void readHeader() {
+        String id = "";
+        for (int i = 0; i < 6; i++) {
+            id += (char) readContent();
+        }
+
+        if (!id.startsWith("GIF")) {
+            Log.e(TAG, "not start with GIF");
+            mStatus = _STATUS_FORMAT_ERROR;
+            return;
+        }
+
+        readLSD();
+        if (mGctFlag && !getErrorStatus()) {
+	    mGct = null;
+            mGct = readColorTable(mGctSize);
+            mBgColor = mGct[mBgIndex];
+        }
+    }
+
+    protected synchronized void  readImage() {
+        mIx = readShort(); // (sub)image position & size
+        mIy = readShort();
+        mIw = readShort();
+        mIh = readShort();
+
+        int packed = readContent();
+        mLctFlag = (packed & 0x80) != 0; // 1 - local color table flag
+        mInterlace = (packed & 0x40) != 0;
+        // 2 - interlace flag
+        // 3 - sort flag
+        // 4-5 - reserved
+        // 6-8 - local color table size
+        mLctSize = 2 << (packed & 7);
+        if (mLctFlag) {
+	    mLct = null;
+            mLct = readColorTable(mLctSize); // read table
+            // Log.d(TAG, "make local table active");
+            mAct = mLct;
+
+        } else {
+            // Log.d(TAG, "make global table active");
+            mAct = mGct;
+            if (mBgIndex == mTransIndex) {
+                mBgColor = 0;
+            }
+        }
+
+        int save = 0;
+        if (mTransparency) {
+            // Log.d(TAG, "set transparent color if specified");
+            save = mAct[mTransIndex];
+            mAct[mTransIndex] = 0;
+
+        }
+
+        if (mAct == null) {
+            Log.e(TAG, "no color table defined");
+            mStatus = _STATUS_FORMAT_ERROR;
+        }
+        if (getErrorStatus()) {
+            return ;
+        }
+
+        // Log.d(TAG, "decode pixel data");
+        decodeImageData();
+        skip();
+        if (getErrorStatus()) {
+            return ;
+        }
+        mFrameCount++;
+//        try {
+//            // Log.d(TAG, "create new image to receive frame data");
+//            mImage = Bitmap.createBitmap(mWidth, mHeight, Config.ARGB_8888);
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+
+        // createImage(width, height);
+        Log.d(TAG, "add image begin mFrameCount "+mFrameCount +"leftFrame:"+getLeftFrameCount());
+        if(!mUnDecode) {
+        setPixels();
+        // Log.d(TAG, "add image to frame");
+        mFrames.addElement(new GifFrame(mImage, mDelay));
+        Log.d(TAG, "add image end mFrameCount "+"leftFrame:"+getLeftFrameCount());
+        }
+        // list
+        if (mTransparency) {
+            mAct[mTransIndex] = save;
+        }
+        resetFrame();
+    }
+
+    protected void readLSD() {
+        // logical screen size
+        mWidth = readShort();
+        mHeight = readShort();
+        // packed fields
+        int packedField = readContent();
+        mGctFlag = (packedField & 0x80) != 0;
+        // 1 : global color table flag
+        // 2-4 : color resolution
+        // 5 : gct sort flag
+        // 6-8 : gct size
+        mGctSize = 2 << (packedField & 7);
+        mBgIndex = readContent(); // background color index
+        mPixelAspect = readContent(); // pixel aspect ratio
+    }
+
+    protected void readNetscapeExt() {
+        do {
+            readBlock();
+            if (mBlock[0] == 1) {
+                // loop count sub-block
+                int b1 = ((int) mBlock[1]) & 0xff;
+                int b2 = ((int) mBlock[2]) & 0xff;
+                mLoopCount = (b2 << 8) | b1;
+            }
+        } while ((mBlockSize > 0) && !getErrorStatus());
+    }
+
+    protected int readShort() {
+        // Log.d(TAG, "read 16-bit value, LSB first");
+        return readContent() | (readContent() << 8);
+    }
+
+    protected void resetFrame() {
+        mLastDispose = mDispose;
+
+        mLrw = mIw;
+        mLrh = mIh;
+
+        mLrx = mIx;
+        mLry = mIy;
+        mDispose = 0;
+
+        mLastImage = mImage;
+        mLastBgColor = mBgColor;
+
+        mTransparency = false;
+        mDelay = 0;
+        mLct = null;
+    }
+
+    /**
+     * Skips variable length blocks up to and including next zero length block.
+     */
+    protected void skip() {
+        do {
+            readBlock();
+        } while ((mBlockSize > 0) && !getErrorStatus());
+    }
+
+    public void release() {
+        setDone(false);
+        mBlock = null;
+        mPrefix = null;
+        mSuffix = null;
+        mPixelStack = null;
+        mPixels = null;
+        mGct = null;
+        mLct = null;
+        mAct = null;
+    }
+}
+
+/*
+ * Copyright (c) 2012 Thunder Software Technology Co.,Ltd.
+ * All Rights Reserved.
+ * Thundersoft Confidential and Proprietary.
+ * Developed by Thundersoft Engineering team.
+ */
+package com.android.gallery3d.gif;
+
+
+import android.app.Activity;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.util.Log;
+import android.widget.Toast;
+
+import com.gangyun.camera.R;
+
+public class GifPlayerActivity extends Activity {
+    private static final String TAG = "GifPlayerActivity";
+
+    private GifView mGifView = null;
+
+    private boolean isFirstShow = true;
+
+    /**
+     * MSG_DECODE_GIF_ERROR
+     */
+    public static final int MSG_DECODE_GIF_ERROR = 0x2000;
+    //when decoder begin than send this message
+    public static final int MSG_DECODE_BEGIN = 0x2001;
+
+    public static final int MSG_DECODE_FINISH= 0x2002;
+
+    public static final int MSG_DECODE_NOTGIF = 0x2003;
+
+    /**
+     * mHandler
+     */
+    public Handler mHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case MSG_DECODE_NOTGIF:
+                   if(isFirstShow) {
+                       isFirstShow = false;
+                   }
+                   if(mGifView != null) {
+                       mGifView.recycleGifFrame();
+                   }
+                   finish();
+                   break;
+                case MSG_DECODE_GIF_ERROR:
+                    Log.d(TAG, "handleMessage(): isFirstShow = " + isFirstShow);
+                    if(isFirstShow) {
+//                        Toast.makeText(QPhoneGifPlayerActivity.this,
+//                                getString(Res.string.qphone_cannot_play_current_gif), Toast.LENGTH_SHORT).show();
+                        isFirstShow = false;
+                    }
+
+                    if(mGifView != null) {
+                        mGifView.recycleGifFrame();
+                    }
+                    Toast.makeText(GifPlayerActivity.this,getString(R.string.cannot_play_current_gif), Toast.LENGTH_SHORT).show();
+                    finish();
+                    break;
+	        case MSG_DECODE_BEGIN:
+                    // start thread for update the view
+				    if (mGifView != null) {
+					    Thread t = new Thread(mGifView);
+					    t.start();
+				    }
+                    break;
+            case MSG_DECODE_FINISH:
+			finish();
+		    break;
+            default :
+                    break;
+            }
+        }
+    };
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        Uri gifUri = getIntent().getData();
+        Log.d(TAG, "gifUri: " + gifUri);
+        try {
+            mGifView = new GifView(this, gifUri, mHandler);
+        } catch(OutOfMemoryError e) {
+            e.printStackTrace();
+        }
+        Log.d(TAG, "onCreate(): entry to play gif animation...mQPhoneGifView = " + mGifView);
+        if(mGifView !=null) {
+            setContentView(mGifView);
+        } else {
+          mHandler.obtainMessage();
+          mHandler.sendEmptyMessage(MSG_DECODE_GIF_ERROR);
+        }
+
+        // setContentView(R.layout.gif_layout);
+    }
+
+    public void onPause() {
+        super.onPause();
+//        if(App.VERBOSE) {
+//            Log.d(TAG, "onPause(): mQphoneGifView = " + mQPhoneGifView);
+//        }
+        //when playing one gif, screen off, and then screen on,
+        //the playing interface is black, now if happen, exit current playing interface.
+        if(mGifView != null) {
+            mGifView.recycleGifFrame();
+        }
+        finish();
+
+    }
+
+    /*@Override
+    public void onDestroy() {
+        super.onDestroy();
+        if(mQPhoneGifView != null) {
+            mQPhoneGifView.recycleGifFrame();
+        }
+    }*/
+}
+
+/*
+ * Copyright (c) 2012 Thunder Software Technology Co.,Ltd.
+ * All Rights Reserved.
+ * Thundersoft Confidential and Proprietary.
+ * Developed by Thundersoft Engineering team.
+ */
+package com.android.gallery3d.gif;
+
+
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+
+import android.net.Uri;
+import android.os.Handler;
+import android.util.AttributeSet;
+import android.util.Log;
+import android.view.View;
+import android.content.ContentResolver;
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Bitmap;
+import android.graphics.Paint;
+import android.graphics.RectF;
+
+public class GifView extends View implements Runnable {
+    private Bitmap mBitmap;
+
+    private Bitmap mBitmapReserved;
+
+    private GifDecoder mDecoder;
+
+    private Handler mHandler;
+
+    private int playDelay = 100;
+
+    private static int position = 0;
+
+    private static final String TAG = "GifView";
+    private GifViewThread gifThread;
+    private Paint mPaint;
+
+    /**
+     *
+     * @param context context
+     * @param gifUri gifUri
+     * @param handler handler
+     */
+    public GifView(Context context, Uri gifUri, Handler handler) {
+        super(context);
+        mPaint = new Paint();
+        mHandler = handler;
+        mDecoder = new GifDecoder();
+        gifThread = new GifViewThread(context, gifUri);
+        gifThread.start();
+
+    }
+    //init view;
+    class GifViewThread extends Thread {
+        private Uri gifUri;
+        private Context mContext;
+    	public GifViewThread(Context context,Uri uri) {
+            gifUri = uri;
+            mContext = context;
+        }
+        public void run() {
+            //fix OOM,change gif read mode:as decode as play
+            ContentResolver cr = mContext.getContentResolver();
+            InputStream inputStream = null;
+            try {
+                inputStream = cr.openInputStream(gifUri);
+                mDecoder.readContent(inputStream,true,false);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (OutOfMemoryError e) {
+                mHandler.obtainMessage();
+                mHandler.sendEmptyMessage(GifPlayerActivity.MSG_DECODE_GIF_ERROR);
+                return;
+            }
+
+            int nGifCount = mDecoder.getFrameCount();
+            mBitmap = mDecoder.getHeadFrame();
+            mDecoder.releaseFrame();
+            playDelay = mDecoder.getDelay();
+            Log.d(TAG, "GifView():mGifCount = " + nGifCount+ ", playDelay = " + playDelay);
+            
+            if(playDelay==0 && nGifCount==1){
+            	Log.d(TAG, "I don't think this is a gif file.");
+            	mHandler.obtainMessage();
+	            mHandler.sendEmptyMessage(GifPlayerActivity.MSG_DECODE_NOTGIF);
+            }else{
+	            mHandler.obtainMessage();
+	            mHandler.sendEmptyMessage(GifPlayerActivity.MSG_DECODE_BEGIN);
+            }
+            mDecoder.readContent(inputStream,false,false);
+            while(mDecoder.getLoopCount()==0 && !isExit){
+                try {
+                    inputStream = cr.openInputStream(gifUri);
+                    mDecoder.readContent(inputStream,true,true);
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (OutOfMemoryError e) {
+                    mHandler.obtainMessage();
+                    mHandler.sendEmptyMessage(GifPlayerActivity.MSG_DECODE_GIF_ERROR);
+                    return;
+                }
+                mDecoder.readContent(inputStream,false,true);
+
+            }
+            
+            isStopRun = true;
+         }
+     }
+    /**
+     *
+     * @param context context
+     * @param aSet aSet
+     */
+    public GifView(Context context, AttributeSet aSet) {
+        super(context, aSet);
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        if(/*!isStopRun || */mBitmap==null || mDecoder == null) {
+            return ;
+        }
+        try {
+            Log.d(TAG, "onDraw(): position = " + position + ", GifCount = " + mDecoder.getFrameCount() + " begin");
+            resizeBitmap(canvas);
+            Log.d(TAG, "onDraw(): position = " + position + ", GifCount = " + mDecoder.getFrameCount()+ " end");
+            mBitmapReserved = mBitmap;
+            playDelay = mDecoder.getDelay();
+            mBitmap = mDecoder.getNextFrame();
+            if (mBitmap == null) {
+                mBitmap = mBitmapReserved;
+            }else
+                position ++;
+
+            if(mBitmapReserved != null &&mBitmapReserved.equals(mBitmap) == false ){
+                Log.d(TAG, "mBitmapReserved.recycle();");
+                mBitmapReserved.recycle();
+                mBitmapReserved = null;
+                mDecoder.releaseFrame();
+            }
+
+        } catch (NullPointerException e) {
+            // e.printStackTrace();
+            mHandler.obtainMessage();
+            mHandler.sendEmptyMessage(GifPlayerActivity.MSG_DECODE_GIF_ERROR);
+        } catch (Exception e) {
+            // e.printStackTrace();
+            mHandler.obtainMessage();
+            mHandler.sendEmptyMessage(GifPlayerActivity.MSG_DECODE_GIF_ERROR);
+        }
+    }
+
+	protected void resizeBitmap(Canvas canvas) {
+		float gifWidth = mBitmap.getWidth();
+		float gifHeight = mBitmap.getHeight();
+		float windowWidth = getWidth();
+		float windowHeight = getHeight();
+		float scaleWidth;
+		float scaleHight;
+        float left;
+        float top;
+		double scale;
+		if(mPaint == null)
+		    return;
+	//	Log.i(TAG, "Start draw current time is : " + System.currentTimeMillis());  //add for test bug
+		if(gifWidth > windowWidth || gifHeight > windowHeight){
+			if((gifWidth/windowWidth) <= (gifHeight/windowHeight)){
+				scale = gifHeight/windowHeight;
+				scaleWidth = (float) (gifWidth / scale);
+				left = (windowWidth-scaleWidth)/2;
+				scaleWidth = left + scaleWidth;
+				canvas.drawBitmap(mBitmap, null, new RectF(left, 0, scaleWidth, windowHeight), mPaint);
+			}else{
+				scale = gifWidth / windowWidth;
+				scaleHight = (float) (gifHeight/scale);
+				top = (windowHeight-scaleHight)/2;
+				scaleHight = top + scaleHight;
+				canvas.drawBitmap(mBitmap, null, new RectF(0, top, windowWidth, scaleHight), mPaint);
+			}
+		}else{
+			top = (windowHeight-gifHeight) / 2 ;
+			left = (windowWidth-gifWidth) / 2;
+			canvas.drawBitmap(mBitmap,left,top,mPaint);
+		}
+	//	Log.i(TAG, "Draw over current time is : " + System.currentTimeMillis());   //add for test bug
+	}
+
+	private boolean isStopRun = false;
+    private boolean isExit = false;
+    /**
+     * run
+     */
+	public void run() {
+		while (!isExit && mDecoder != null && (!isStopRun ||  mDecoder.getLeftFrameCount()>0 )) {
+			try {
+				this.postInvalidate();
+				if (playDelay < 0 || playDelay == 0) {
+					Thread.sleep(100);
+				} else {
+					Thread.sleep((long) playDelay);
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		//draw the last bitmap
+		if(isStopRun && mDecoder!= null && mDecoder.getLeftFrameCount()==0)
+			this.postInvalidate();
+		mHandler.obtainMessage();
+        mHandler.sendEmptyMessage(GifPlayerActivity.MSG_DECODE_FINISH);
+	}
+
+    /**
+     * recycleGifFrame
+     */
+    public void recycleGifFrame() {
+		if (mDecoder != null) {
+		    mDecoder.setDone(true);
+		}
+        position = 0;
+        isStopRun = false;
+        isExit = true;
+        if(gifThread!= null) {
+            try{
+                gifThread.join();
+            }catch(Exception e){
+            }
+        }
+        if(mPaint != null)
+        mPaint = null;
+        if(mDecoder != null) {
+            Log.d(TAG,"getLeftFrameCount "+mDecoder.getLeftFrameCount());
+            while(mDecoder.getLeftFrameCount()>0){
+                Bitmap bitmap = mDecoder.getNextFrame();
+                if (bitmap != null) {
+                    bitmap.recycle();
+                    bitmap = null;
+                }
+                mDecoder.releaseFrame();
+                Log.d(TAG,"getLeftFrameCount "+mDecoder.getLeftFrameCount());
+            }
+        }
+        if(mBitmap != null){
+            Log.d(TAG, "mBitmap.recycle();");
+            mBitmap.recycle();
+            mBitmap = null;
+        }
+
+        if( mBitmapReserved != null){
+            Log.d(TAG, "mBitmapReserved.recycle();");
+            mBitmapReserved.recycle();
+            mBitmapReserved = null;
+        }
+        if(mDecoder != null){
+            mDecoder.release();
+            mDecoder = null;
+        }
+    }
+
+}
