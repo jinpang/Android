@@ -1,0 +1,105 @@
+private static final int MAX_INTERVAL_FOR_CLICK = 250;  
+    private static final int MAX_DISTANCE_FOR_CLICK = 100;  
+    private static final int MAX_DOUBLE_CLICK_INTERVAL = 500;  
+    int mDownX = 0;  
+    int mDownY = 0;  
+    int mTempX = 0;  
+    int mTempY = 0;  
+    boolean mIsWaitUpEvent = false;  
+    boolean mIsWaitDoubleClick = false;  
+    Runnable mTimerForUpEvent = new Runnable() {  
+        public void run() {  
+            if (mIsWaitUpEvent) {  
+                Log.d(LOG_TAG,  
+                        "The mTimerForUpEvent has executed, so set the mIsWaitUpEvent as false");  
+                mIsWaitUpEvent = false;  
+            } else {  
+                Log.d(LOG_TAG,  
+                        "The mTimerForUpEvent has executed, mIsWaitUpEvent is false,so do nothing");  
+            }  
+        }  
+    };  
+  
+  
+    @Override  
+    public boolean onTouchEvent(MotionEvent event) {  
+        if (!mIsWaitUpEvent && event.getAction() != MotionEvent.ACTION_DOWN) {  
+            return super.onTouchEvent(event);  
+        }  
+        switch (event.getAction()) {  
+        case MotionEvent.ACTION_DOWN:  
+            mDownX = (int) event.getX();  
+            mDownY = (int) event.getY();  
+            mIsWaitUpEvent = true;  
+            postDelayed(mTimerForUpEvent, MAX_INTERVAL_FOR_CLICK);  
+            break;  
+        case MotionEvent.ACTION_MOVE:  
+            mTempX = (int) event.getX();  
+            mTempY = (int) event.getY();  
+            if (Math.abs(mTempX - mDownX) > MAX_DISTANCE_FOR_CLICK  
+                    || Math.abs(mTempY - mDownY) > MAX_DISTANCE_FOR_CLICK) {  
+                mIsWaitUpEvent = false;  
+                removeCallbacks(mTimerForUpEvent);  
+                Log.d(LOG_TAG, "The move distance too far:cancel the click");  
+            }  
+            break;  
+        case MotionEvent.ACTION_UP:  
+            mTempX = (int) event.getX();  
+            mTempY = (int) event.getY();  
+            if (Math.abs(mTempX - mDownX) > MAX_DISTANCE_FOR_CLICK  
+                    || Math.abs(mTempY - mDownY) > MAX_DISTANCE_FOR_CLICK) {  
+                mIsWaitUpEvent = false;  
+                removeCallbacks(mTimerForUpEvent);  
+                Log.d(LOG_TAG,  
+                        "The touch down and up distance too far:cancel the click");  
+                break;  
+            } else {  
+                mIsWaitUpEvent = false;  
+                removeCallbacks(mTimerForUpEvent);  
+                onSingleClick();  
+                return super.onTouchEvent(event);  
+            }  
+        case MotionEvent.ACTION_CANCEL:  
+            mIsWaitUpEvent = false;  
+            removeCallbacks(mTimerForUpEvent);  
+            Log.d(LOG_TAG, "The touch cancel state:cancel the click");  
+            break;  
+        default:  
+            Log.d(LOG_TAG, "irrelevant MotionEvent state:" + event.getAction());  
+        }  
+        return super.onTouchEvent(event);  
+    }  
+  
+  
+    Runnable mTimerForSecondClick = new Runnable() {  
+        @Override  
+        public void run() {  
+            if (mIsWaitDoubleClick) {  
+                Log.d(LOG_TAG,  
+                        "The mTimerForSecondClick has executed,so as a singleClick");  
+                mIsWaitDoubleClick = false;  
+                // at here can do something for singleClick!!  
+            } else {  
+                Log.d(LOG_TAG,  
+                        "The mTimerForSecondClick has executed, the doubleclick has executed ,so do thing");  
+            }  
+        }  
+    };  
+  
+    public void onSingleClick() {  
+        if (mIsWaitDoubleClick) {  
+            onDoubleClick();  
+            mIsWaitDoubleClick = false;  
+            removeCallbacks(mTimerForSecondClick);  
+        } else {  
+            mIsWaitDoubleClick = true;  
+            postDelayed(mTimerForSecondClick, MAX_DOUBLE_CLICK_INTERVAL);  
+        }  
+    }  
+  
+    public void onDoubleClick() {  
+        Log.d(LOG_TAG,"we can do sth for double click here");  
+    }
+    
+    
+    come from http://blog.csdn.net/mydreamongo/article/details/38405659
