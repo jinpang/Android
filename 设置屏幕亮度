@@ -1,0 +1,6 @@
+//设置屏幕亮度
+Window localWindow = getWindow();
+WindowManager.LayoutParams localLayoutParams = localWindow.getAttributes();
+float f = 0.85F;
+localLayoutParams.screenBrightness = f;
+localWindow.setAttributes(localLayoutParams);
