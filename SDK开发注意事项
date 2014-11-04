@@ -1,0 +1,9 @@
+SDK开发注意事项
+1、提供给第三方使用的sdk包，一般都会正式打成apk包后，再使用反编译工具解压后，把源码压成jar包再给到用户，
+在这情况下就会出现一问题：jar包里面的类方法引用到的资源文件会引用不到的，比如想使用这样引用：getString(R.string.OK)，这样是不行的
+，因为R.string.OK是根据上下文来找的，当你把jar提供给用户时，这个上下就未知了。所以要解决这种问题应该这样处理：
+context.getResources().getIdentifier("OK", "string", context.getPackageName())这样获取到资源的ID号，再来使用。
+这个是本人经过大半天折腾出来的方法，仅此记录下，以备有用。
+还有些：
+mContext.getResources().getIdentifier("voice_perfect", "raw", mContext.getPackageName())
+mContext.getResources().getIdentifier("ext_size", "dimen", mContext.getPackageName())
