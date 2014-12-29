@@ -1,0 +1,12 @@
+android 框架androidannotations在Eclipse中的配置
+
+首先确保有两个重要的JAR包：androidannotations-X.X.X-api.jar 和 androidannotations-X.X.X.jar，jar包官网下载地址https://github.com/excilys/androidannotations/wiki/Download。
+步骤：
+1、将androidannotations-X.X.X-api.jar 放到libs文件夹下；
+2、将androidannotations-X.X.X.jar放到不同于libs的文件夹下, 比如新建lib文件夹。
+3、在你的工程上右键单击,在弹出的菜单中选择"Properties"，找到Java Compiler，确保Compiler compliance level设置为1.6,否则的话处理器将不起作用。
+4、选择Java Compiler中的 Annotation Processing 并且选中 Enable annotation in Editor。
+5、转到Java Compiler 中的 Annotation Processing 下边的 Factory Path，在此将androidannotations-X.X.X.jar添加到其中。
+6、转到Java Build Path 下的Libraries，添加androidannotations-X.X.X-api.jar。（ADT 17 自动加载libs文件夹下的JARs)。
+至此，您可以使用androidannotations了。
+
