@@ -318,4 +318,246 @@ public class Utils {
     public static void debug(String message, Object ... args) {
         Log.v(DEBUG_TAG, String.format(message, args));
     }
+    
+    /**
+     * 根据图片绝对路径从数据库中查询记录
+     * @param mContext
+     * @param filePath
+     * @return  返回查询到的游标
+     */
+    public static Cursor queryByPath(Context mContext, String filePath)
+    {
+        Uri baseUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;//图片类型的Uri
+        Uri query = baseUri.buildUpon().appendQueryParameter("limit", "1").build();
+        String[] projection =
+        {
+                ImageColumns._ID, // 0
+                ImageColumns.TITLE, // 1
+                ImageColumns.MIME_TYPE, // 2
+                ImageColumns.LATITUDE, // 3
+                ImageColumns.LONGITUDE, // 4
+                ImageColumns.DATE_TAKEN, // 5
+                ImageColumns.DATE_ADDED, // 6
+                ImageColumns.DATE_MODIFIED, // 7
+                ImageColumns.DATA, // 8
+                ImageColumns.ORIENTATION, // 9
+                ImageColumns.BUCKET_ID, // 10
+                ImageColumns.SIZE
+                // 11
+        };
+        String selection = ImageColumns.DATA + "=" + filePath;
+        String order = ImageColumns.DATE_TAKEN + " DESC," + ImageColumns._ID + " DESC";
+        Cursor cursor = null;
+        try
+        {
+            cursor = mContext.getContentResolver().query(query, projection, selection, null, order);
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+        return cursor;
+    }
+
+    /**
+     * 根据图片绝对路径获取Uri
+     * @param mContext
+     * @param filePath
+     * @return  返回Uri
+     */
+    public static Uri getUriByPath(Context mContext, String filePath)
+    {
+        Uri baseUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;//图片类型的Uri
+        Uri query = baseUri.buildUpon().appendQueryParameter("limit", "1").build();
+        String[] projection =
+        {
+                ImageColumns._ID, // 0
+        };
+        String selection = ImageColumns.DATA + "=" + filePath;
+        String order = ImageColumns.DATE_TAKEN + " DESC," + ImageColumns._ID + " DESC";
+        Cursor cursor = null;
+        try
+        {
+            cursor = mContext.getContentResolver().query(query, projection, selection, null, order);
+            if (cursor != null && cursor.moveToFirst())
+            {
+                long id = cursor.getLong(0);
+                return ContentUris.withAppendedId(baseUri, id);
+            }
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * 根据图片绝对路径向数据库中插入图片记录
+     * @param mContext
+     * @param filePath
+     * @return  返回插入的Uri
+     */
+    public static Uri insertImageByPath(Context mContext, String filePath, int width, int height)
+    {
+        Uri uri = null;
+        try
+        {
+            // Insert into MediaStore.
+            if (filePath == null)
+                return null;
+            String title = FileUtil.getFileNameByPath(filePath);
+            String titleWithSuffix = FileUtil.getFileNameIncludeSuffixByPath(filePath);
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true; //确保图片不加载到内存 
+            BitmapFactory.decodeFile(filePath, opts);
+            ExifInterface exif = new ExifInterface(filePath);
+            int size = 0;
+            int orientation = 0;
+            try
+            {
+                size = Integer.valueOf(exif.TAG_IMAGE_LENGTH);
+                orientation = Integer.valueOf(exif.TAG_ORIENTATION);
+            }
+            catch (Exception e)
+            {
+                size = 1024 * 100;
+            }
+            if (size == 0)
+            {
+                size = 1024 * 100;
+            }
+            long date = System.currentTimeMillis();
+            ContentValues values = new ContentValues();
+            values.put(ImageColumns.TITLE, title);
+            values.put(ImageColumns.DISPLAY_NAME, titleWithSuffix);
+            values.put(ImageColumns.DATE_TAKEN, date);
+            values.put(ImageColumns.DATE_MODIFIED, date / 1000);
+            values.put(ImageColumns.MIME_TYPE, opts.outMimeType);
+            values.put(ImageColumns.DATA, filePath);
+            values.put(ImageColumns.SIZE, size);
+            // Clockwise rotation in degrees. 0, 90, 180, or 270.
+            values.put(ImageColumns.ORIENTATION, orientation);
+            values.put(ImageColumns.WIDTH, width);
+            values.put(ImageColumns.HEIGHT, height);
+            uri = mContext.getContentResolver().insert(Images.Media.EXTERNAL_CONTENT_URI, values);
+        }
+        catch (Throwable th)
+        {
+            Log.e(TAG, "Failed to write MediaStore" + th);
+        }
+        return uri;
+    }
+
+    /**
+     * 根据图片绝对路径向数据库中插入图片记录
+     * @param mContext
+     * @param filePath
+     * @return  返回插入的Uri
+     */
+    public static Uri insertImageByPath(Context mContext, String filePath)
+    {
+        Uri uri = null;
+        try
+        {
+            // Insert into MediaStore.
+            if (filePath == null)
+                return null;
+            String title = FileUtil.getFileNameByPath(filePath);
+            String titleWithSuffix = FileUtil.getFileNameIncludeSuffixByPath(filePath);
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true; //确保图片不加载到内存 
+            BitmapFactory.decodeFile(filePath, opts);
+            ExifInterface exif = new ExifInterface(filePath);
+            int size = 0;
+            int orientation = 0;
+            try
+            {
+                size = Integer.valueOf(exif.TAG_IMAGE_LENGTH);
+                orientation = Integer.valueOf(exif.TAG_ORIENTATION);
+            }
+            catch (Exception e)
+            {
+                size = 1024 * 100;
+            }
+            if (size == 0)
+            {
+                size = 1024 * 100;
+            }
+            long date = System.currentTimeMillis();
+            ContentValues values = new ContentValues();
+            values.put(ImageColumns.TITLE, title);
+            values.put(ImageColumns.DISPLAY_NAME, titleWithSuffix);
+            values.put(ImageColumns.DATE_TAKEN, date);
+            values.put(ImageColumns.DATE_MODIFIED, date / 1000);
+            values.put(ImageColumns.MIME_TYPE, opts.outMimeType);
+            values.put(ImageColumns.DATA, filePath);
+            values.put(ImageColumns.SIZE, size);
+            // Clockwise rotation in degrees. 0, 90, 180, or 270.
+            values.put(ImageColumns.ORIENTATION, orientation);
+            values.put(ImageColumns.WIDTH, opts.outWidth);
+            values.put(ImageColumns.HEIGHT, opts.outHeight);
+            uri = mContext.getContentResolver().insert(Images.Media.EXTERNAL_CONTENT_URI, values);
+        }
+        catch (Throwable th)
+        {
+            Log.e(TAG, "Failed to write MediaStore" + th);
+        }
+        return uri;
+    }
+
+    /**
+     * 根据图片绝对路径从系统数据库的images表中删除记录
+     * 
+     * @param mContext
+     * @param filePath
+     * @return 返回删除的行数
+     */
+    public static int deleteImageByPath(Context mContext, String filePath)
+    {
+        try
+        {
+            Uri baseUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;// 图片类型的Uri
+            // content://meida/images/media
+            String where = ImageColumns.DATA + "=?";
+            //Log.e(TAG, "deleteImageByPath: uri=" + baseUri + ",file:" + filePath);
+            return mContext.getContentResolver().delete(baseUri, where, new String[]
+            {
+                    filePath
+            });
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    /**
+     * 根据图片绝对路径从系统数据库的images表中更新记录
+     * 
+     * @param mContext
+     * @param filePath
+     * @param newFilePath
+     * @return 返回更新的行数
+     */
+    public static int updateImageByPath(Context mContext, String filePath, String newFilePath)
+    {
+        try
+        {
+            Uri baseUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;// 图片类型的Uri
+            String where = ImageColumns.DATA + "=?" + filePath;
+            ContentValues values = new ContentValues(1);
+            values.put(ImageColumns.DATA, newFilePath);
+            return mContext.getContentResolver().update(baseUri, values, where, new String[]
+            {
+                    filePath
+            });// 在数据库中更新图片路径字段
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+        return 0;
+    }
 }
