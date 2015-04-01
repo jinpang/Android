@@ -1,0 +1,313 @@
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * 根据指定的项目的R.java文件的ID，生成对应源文件目录的RR.java文件的名称
+ */
+public class GenerateResourceName
+{
+    private final static String destFileName = "RR";
+    private final static String destProjectRootPath = "F:\\jin\\workspace\\GenerateResourceName\\";
+    private final static String srcName = destProjectRootPath
+            + "gen\\com\\jinpang\\GenerateResourceName\\R.java";
+    private final static String destName = destProjectRootPath
+            + "src\\com\\jinpang\\albumsdk\\" + destFileName + ".java";
+    private final static String tmpName = destProjectRootPath
+            + "src\\com\\jinpang\\GenerateResourceName\\" + destFileName + ".tmp";
+    public final static String StringName = "String";
+    public final static String regex = "public static final (int) (.+)=(.+);";
+    public final static String regexClassName = "public final class (R) \\{";
+    public final static String regexInnerClassName = "public static final class (.+) \\{";
+    public final static String regexIntegerArrayName = "public static final (int)\\[\\] (.+)=(.+)";
+    public final static String regexStleableClass = "public static final class (styleable)";
+
+    public final static String regexPackage = "package com.(.+);";
+
+    public final static String newLine = "\n";
+    public final static String prefix = "    ";
+    public final static String clause = ";";
+    public final static String methodPrefix1 = "        ";
+    public final static String methodPrefix2 = "            ";
+    public final static String methodPrefix3 = "                   ";
+    //如果导入的包
+    public final static String importContextClass = "import android.content.Context;";
+
+    public final static String id = "public static final String ID = \"id\"";
+    public final static String string = "public static final String STRING = \"string\"";
+    public final static String array = "public static final String ARRAY = \"array\"";
+    public final static String attr = "public static final String ATTR = \"attr\"";
+    public final static String color = "public static final String COLOR = \"color\"";
+    public final static String dimen = "public static final String DIMEN = \"dimen\"";
+    public final static String drawable = "public static final String DRAWABLE = \"drawable\"";
+    public final static String layout = "public static final String LAYOUT = \"layout\"";
+    public final static String raw = "public static final String RAW = \"raw\"";
+    public final static String style = "public static final String STYLE = \"style\"";
+    public final static String anim = "public static final String ANIM = \"anim\"";
+    public final static String bool = "public static final String BOOL = \"bool\"";
+    public final static String integer = "public static final String INTEGER = \"integer\"";
+    public final static String interpolator = "public static final String INTERPOLATOR = \"interpolator\"";
+    public final static String menu = "public static final String MENU = \"menu\"";
+    public final static String mipmap = "public static final String MIPMAP = \"mipmap\"";
+    public final static String plurals = "public static final String PLURALS = \"plurals\"";
+    public final static String styleable = "public static final String STYLEABLE = \"styleable\"";
+    public final static String xml = "public static final String XML = \"xml\"";
+
+    public final static String common[] =
+    {
+            id, string, array, attr, color, dimen, drawable, layout, raw, style, anim, bool,
+            integer, interpolator, menu, mipmap, plurals, styleable, xml
+    };
+
+    private static Map<String, String> mKeyValueMaps = new HashMap<String, String>();
+
+    public static void main(String[] args)
+    {
+        File src = new File(srcName);
+        File tmp = new File(tmpName);
+        File dest = new File(destName);
+        parse(src, tmp);
+        //处理styleable类型
+        parseStyleable(tmp, dest);
+    }
+
+    public static void parse(File src, File dest)
+    {
+        mKeyValueMaps.clear();
+        BufferedReader br = null;
+        BufferedWriter bw = null;
+        Pattern pattern = Pattern.compile(regex);
+        Pattern patternClassName = Pattern.compile(regexClassName);
+        Pattern patternInnerClassName = Pattern.compile(regexInnerClassName);
+        Pattern patternPackage = Pattern.compile(regexPackage);
+        Pattern patternStleableClass = Pattern.compile(regexStleableClass);
+        Matcher matcher;
+        Matcher matcherClassName;
+        Matcher matcherInnerClassName;
+        Matcher matcherPackage;
+        Matcher matcherStleableClass;
+
+        try
+        {
+            br = new BufferedReader(new FileReader(src));
+            bw = new BufferedWriter(new FileWriter(dest));
+            String line = "";
+            while ((line = br.readLine()) != null)
+            {
+                matcher = pattern.matcher(line);
+                matcherClassName = patternClassName.matcher(line);
+                matcherInnerClassName = patternInnerClassName.matcher(line);
+                matcherPackage = patternPackage.matcher(line);
+                matcherStleableClass = patternStleableClass.matcher(line);
+                if (matcherPackage.find())
+                {
+                    bw.write(line + newLine);
+                    bw.write(importContextClass + newLine + newLine);
+                }
+                else if (matcherClassName.find())
+                {
+                    String g1 = matcherClassName.group(1).trim();
+                    line = line.replace(g1, destFileName);
+                    bw.write(line + newLine + newLine);
+                    for (String s : common)
+                    {
+                        bw.write(prefix + s + clause + newLine);
+                    }
+                    bw.write(newLine);
+                }
+                else if (matcherInnerClassName.find())
+                {
+                    String g1 = matcherInnerClassName.group(1).trim();
+                    bw.write(line + newLine + newLine);
+                    String method = methodPrefix1
+                            + "public static int getIdentifier(Context context, String resName)"
+                            + newLine + methodPrefix1 + "{" + newLine + methodPrefix2 +
+                            "return context.getResources().getIdentifier("
+                            + newLine + methodPrefix3 +
+                            "resName," + newLine + methodPrefix3 +
+                            "\"" + g1 + "\"," + newLine + methodPrefix3 +
+                            "context.getPackageName());" + newLine + methodPrefix1 +
+                            "}" + newLine;
+                    bw.write(method);
+                    bw.write(newLine);
+                    if (matcherStleableClass.find())
+                    {
+                        g1 = matcherStleableClass.group(1).trim();
+                        String methodArray = methodPrefix1
+                                + "public static int[] getIdentifier(Context context, String[] attrNames)"
+                                + newLine + methodPrefix1 + "{" + newLine + methodPrefix2 +
+                                "int length = attrNames.length;" + newLine + methodPrefix2 +
+                                "int[] attrs = new int[length];" + newLine + methodPrefix2 +
+                                "for (int i = 0; i < length; i++)" + newLine + methodPrefix2 +
+                                "{" + newLine + methodPrefix3 +
+                                "attrs[i] = getIdentifier(context, attrNames[i]);" + newLine
+                                + methodPrefix2 +
+                                "}" + newLine + methodPrefix2 +
+                                "return attrs;" + newLine + methodPrefix1 +
+                                "}" + newLine;
+                        bw.write(methodArray);
+                        bw.write(newLine);
+                    }
+                }
+                else
+                {
+                    if (matcher.find())
+                    {
+                        String g1 = matcher.group(1).trim();
+                        String g2 = matcher.group(2).trim();
+                        String g3 = matcher.group(3).trim();
+                        mKeyValueMaps.put(g3, g2);
+                        line = line.replace(g1, StringName).replace(g3, "\"" + g2 + "\"");
+                    }
+                    bw.write(line + newLine);
+                }
+            }
+        }
+        catch (FileNotFoundException e)
+        {
+            e.printStackTrace();
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        finally
+        {
+            if (br != null)
+            {
+                try
+                {
+                    br.close();
+                    br = null;
+                }
+                catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+            if (bw != null)
+            {
+                try
+                {
+                    bw.flush();
+                    bw.close();
+                    bw = null;
+                }
+                catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public static void parseStyleable(File src, File dest)
+    {
+        BufferedReader br = null;
+        BufferedWriter bw = null;
+        Pattern patternIntegerArrayName = Pattern.compile(regexIntegerArrayName);
+        Matcher matcherIntegerArrayName;
+        try
+        {
+            br = new BufferedReader(new FileReader(src));
+            bw = new BufferedWriter(new FileWriter(dest));
+            String line = "";
+            while ((line = br.readLine()) != null)
+            {
+                matcherIntegerArrayName = patternIntegerArrayName.matcher(line);
+                if (matcherIntegerArrayName.find())
+                {
+                    String g1 = matcherIntegerArrayName.group(1).trim();
+                    line = line.replace(g1, StringName);
+                    bw.write(line + newLine);
+                }
+                else
+                {
+                    Set<String> keySets = mKeyValueMaps.keySet();
+                    boolean isNeed = false;
+                    String[] tmpArray = line.split(",");
+                    for (int i = 0; i < tmpArray.length; i++)
+                    {
+                        tmpArray[i] = tmpArray[i].trim();
+                        if (keySets.contains(tmpArray[i]))
+                        {
+                            tmpArray[i] = mKeyValueMaps.get(tmpArray[i]);
+                            isNeed = true;
+                        }
+                    }
+                    String tmpStr = "";
+                    if (isNeed)
+                    {
+                        if (tmpArray.length > 1)
+                        {
+                            tmpStr = tmpStr + methodPrefix2;
+                            for (int j = 0; j < tmpArray.length - 1; j++)
+                            {
+                                tmpStr = tmpStr + "\"" + tmpArray[j] + "\", ";
+                            }
+                            tmpStr = tmpStr + "\"" + tmpArray[tmpArray.length - 1] + "\"";
+                        }
+                        else
+                        {
+                            tmpStr = methodPrefix2 + tmpStr + "\"" + tmpArray[0] + "\"";
+                        }
+                        bw.write(tmpStr + newLine);
+                    }
+                    else
+                    {
+                        bw.write(line + newLine);
+                    }
+                }
+            }
+        }
+        catch (FileNotFoundException e)
+        {
+            e.printStackTrace();
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        finally
+        {
+            if (br != null)
+            {
+                try
+                {
+                    br.close();
+                    br = null;
+                }
+                catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+            if (bw != null)
+            {
+                try
+                {
+                    bw.flush();
+                    bw.close();
+                    bw = null;
+                }
+                catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+            if (src != null && src.exists())
+            {
+                src.delete();
+            }
+        }
+    }
+}
