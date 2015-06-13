@@ -560,4 +560,159 @@ public class Utils {
         }
         return 0;
     }
+    
+    public static void leftInRightOut(final View leftView, final View rightView, long duration)
+    {
+        TranslateAnimation animationRight = new TranslateAnimation(
+                0, rightView.getRight(), 0, 0);
+        animationRight.setDuration(duration);
+        Animation animationRight2 = new AlphaAnimation(1F, 0F);
+        animationRight2.setDuration(duration);
+        AnimationSet animationRight3 = new AnimationSet(true);
+        animationRight3.addAnimation(animationRight);
+        animationRight3.addAnimation(animationRight2);
+        animationRight3.setAnimationListener(new AnimationListener()
+        {
+
+            @Override
+            public void onAnimationStart(Animation animation)
+            {
+                // TODO Auto-generated method stub
+
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation)
+            {
+                // TODO Auto-generated method stub
+
+            }
+
+            @Override
+            public void onAnimationEnd(Animation animation)
+            {
+                rightView.setVisibility(View.GONE);
+            }
+        });
+        rightView.setEnabled(false);
+        rightView.startAnimation(animationRight3);
+
+        TranslateAnimation animationLeft = new TranslateAnimation(
+                -leftView.getRight() == 0 ? -rightView.getRight() : -leftView.getRight(), 0, 0, 0);
+        animationLeft.setDuration(duration);
+        Animation animationLeft2 = new AlphaAnimation(0F, 1F);
+        animationLeft2.setDuration(duration);
+        AnimationSet animationLeft3 = new AnimationSet(true);
+        animationLeft3.addAnimation(animationLeft);
+        animationLeft3.addAnimation(animationLeft2);
+        animationLeft3.setAnimationListener(new AnimationListener()
+        {
+
+            @Override
+            public void onAnimationStart(Animation animation)
+            {
+                // TODO Auto-generated method stub
+
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation)
+            {
+                // TODO Auto-generated method stub
+
+            }
+
+            @Override
+            public void onAnimationEnd(Animation animation)
+            {
+                leftView.setVisibility(View.VISIBLE);
+            }
+        });
+        leftView.setEnabled(true);
+        leftView.startAnimation(animationLeft3);
+
+    }
+
+
+    public static StateListDrawable newSelector(Context context, int idNormal, int idPressed,
+            int idFocused,
+            int idUnable)
+    {
+        StateListDrawable bg = new StateListDrawable();
+        Drawable normal = idNormal == -1 ? null : context.getResources().getDrawable(idNormal);
+        Drawable pressed = idPressed == -1 ? null : context.getResources().getDrawable(idPressed);
+        Drawable focused = idFocused == -1 ? null : context.getResources().getDrawable(idFocused);
+        Drawable unable = idUnable == -1 ? null : context.getResources().getDrawable(idUnable);
+        // View.PRESSED_ENABLED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_pressed, android.R.attr.state_enabled
+        }, pressed);
+        // View.ENABLED_FOCUSED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_enabled, android.R.attr.state_focused
+        }, focused);
+        // View.ENABLED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_enabled
+        }, normal);
+        // View.FOCUSED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_focused
+        }, focused);
+        // View.WINDOW_FOCUSED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_window_focused
+        }, unable);
+        // View.EMPTY_STATE_SET
+        bg.addState(new int[] {}, normal);
+        return bg;
+    }
+
+    public static StateListDrawable newSelector(Context context, Bitmap idNormal, Bitmap idPressed,
+            Bitmap idFocused,
+            Bitmap idUnable)
+    {
+        StateListDrawable bg = new StateListDrawable();
+        Drawable normal = idNormal == null ? null : new BitmapDrawable(context.getResources(),
+                idNormal);
+        Drawable pressed = idPressed == null ? null : new BitmapDrawable(context.getResources(),
+                idPressed);
+        Drawable focused = idFocused == null ? null : new BitmapDrawable(context.getResources(),
+                idFocused);
+        Drawable unable = idUnable == null ? null : new BitmapDrawable(context.getResources(),
+                idUnable);
+        // View.PRESSED_ENABLED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_pressed, android.R.attr.state_enabled
+        }, pressed);
+        // View.ENABLED_FOCUSED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_enabled, android.R.attr.state_focused
+        }, focused);
+        // View.ENABLED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_enabled
+        }, normal);
+        // View.FOCUSED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_focused
+        }, focused);
+        // View.WINDOW_FOCUSED_STATE_SET
+        bg.addState(new int[]
+        {
+                android.R.attr.state_window_focused
+        }, unable);
+        // View.EMPTY_STATE_SET
+        bg.addState(new int[] {}, normal);
+        return bg;
+    }
 }
