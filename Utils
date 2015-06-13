@@ -715,4 +715,90 @@ public class Utils {
         bg.addState(new int[] {}, normal);
         return bg;
     }
+    
+    /**
+     * String parentPath = Environment.getExternalStoragePublicDirectory(
+            Environment.DIRECTORY_DCIM)
+            .toString();
+       String fileName = parentPath + "/Camera/1原图.jpg";
+     * @param fileName
+     * @param mBitmap
+     */
+    public static void saveBitmap(String fileName, Bitmap mBitmap)
+    {
+        File f = new File(fileName);
+        try
+        {
+            f.createNewFile();
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        FileOutputStream fOut = null;
+        try
+        {
+            fOut = new FileOutputStream(f);
+        }
+        catch (FileNotFoundException e)
+        {
+            e.printStackTrace();
+        }
+        mBitmap.compress(Bitmap.CompressFormat.JPEG, 100, fOut);
+        try
+        {
+            fOut.flush();
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        try
+        {
+            fOut.close();
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+    }
+
+    public static void saveData(String fileName, byte[] data)
+    {
+        File imageFile = new File(fileName);
+        FileOutputStream fstream = null;
+        BufferedOutputStream bStream = null;
+        try
+        {
+            fstream = new FileOutputStream(imageFile);
+            bStream = new BufferedOutputStream(fstream);
+            bStream.write(data);
+        }
+        catch (FileNotFoundException e)
+        {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        catch (IOException e)
+        {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        finally
+        {
+            if (bStream != null)
+            {
+                try
+                {
+                    bStream.close();
+                    bStream = null;
+                }
+                catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
 }
