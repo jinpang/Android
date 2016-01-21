@@ -1,0 +1,29 @@
+ 试过在OnCreate（）中获取控件高度与宽度的童鞋都知道，getWidth()与getHeight()方法返回是0，具体原因 看一下Activity的生命周期 就会明白。
+
+上代码：
+
+方法一：
+
+ 
+
+        int w = View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED);
+        int h = View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED);
+        ssidtext.measure(w, h);
+        int width =ssidtext.getMeasuredWidth();
+        int height =ssidtext.getMeasuredHeight();
+
+方法二：
+
+ 
+
+        ViewTreeObserver vto = ssidtext.getViewTreeObserver();
+        vto.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            public boolean onPreDraw() {
+                int height = ssidtext.getMeasuredHeight();
+                int width = ssidtext.getMeasuredWidth();
+                return true;
+            }
+        });
+        
+        
+come from http://blog.csdn.net/jiangwei0910410003/article/details/16979765
