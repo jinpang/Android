@@ -1,5 +1,3 @@
-package vc.zz.qduxsh.sensormonitor;
-
 import android.content.Context;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
