@@ -22,7 +22,7 @@ public class SquatSensorEventListener implements SensorEventListener {
         mayBeSquat = true;
         mCount = 0;
         mTotalTime = 0;
-        this.mRunnable = runnable;
+        mRunnable = runnable;
         mLastTime = 0;
         mSensorManager = (SensorManager) context.getSystemService(SENSOR_SERVICE);
         if (mSensorManager == null) {
@@ -42,22 +42,22 @@ public class SquatSensorEventListener implements SensorEventListener {
     }
 
     public void setSquatCount(int count) {
-        SquatSensorEventListener.mCount = count;
+        mCount = count;
     }
 
     public void registerListener() {
-        this.hasSensor = mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), 1);
+        hasSensor = mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), 1);
     }
 
     public void unregisterListener() {
         if (mSensorManager != null) {
             mSensorManager.unregisterListener(this);
-            this.hasSensor = false;
+            hasSensor = false;
         }
     }
 
     public boolean hasSensor() {
-        return this.hasSensor;
+        return hasSensor;
     }
 
     @Override
@@ -96,7 +96,7 @@ public class SquatSensorEventListener implements SensorEventListener {
                     stringBuilder.append("count: ");
                     stringBuilder.append(mCount);
                     Log.v(TAG, stringBuilder.toString());
-                    this.mRunnable.run();
+                    mRunnable.run();
                     return;
                 }
                 return;
