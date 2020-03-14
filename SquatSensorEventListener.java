@@ -8,53 +8,50 @@ import android.util.Log;
 import static android.content.Context.SENSOR_SERVICE;
 
 public class SquatSensorEventListener implements SensorEventListener {
-    private final String TAG = "SquatSensorEventListener";
-    private static int squatCount;
-    private static long squatTime;
-    private static int squatOkTime;
-    private static boolean isSquat;
-    private static long lastTime;
-    private static SensorManager sensorManager;
-    public Runnable runnable;
+    private final String TAG = SquatSensorEventListener.class.getSimpleName();
+    private static int mCount;
+    private static long mTotalTime;
+    private static int mAdjustTime;
+    private static boolean mayBeSquat;
+    private static long mLastTime;
+    private static SensorManager mSensorManager;
+    public Runnable mRunnable;
     private boolean hasSensor = false;
 
-    public void onAccuracyChanged(Sensor sensor, int i) {
-    }
-
     public SquatSensorEventListener(Context context, Runnable runnable) {
-        isSquat = true;
-        squatCount = 0;
-        squatTime = 0;
-        this.runnable = runnable;
-        lastTime = 0;
-        sensorManager = (SensorManager) context.getSystemService(SENSOR_SERVICE);
-        if (sensorManager == null) {
-            Log.v("sensor..", "Sensors not supported");
+        mayBeSquat = true;
+        mCount = 0;
+        mTotalTime = 0;
+        this.mRunnable = runnable;
+        mLastTime = 0;
+        mSensorManager = (SensorManager) context.getSystemService(SENSOR_SERVICE);
+        if (mSensorManager == null) {
+            Log.v(TAG, "Sensors not supported");
         }
     }
 
     public void reset() {
-        isSquat = true;
-        squatCount = 0;
-        squatTime = 0;
-        lastTime = 0;
+        mayBeSquat = true;
+        mCount = 0;
+        mTotalTime = 0;
+        mLastTime = 0;
     }
 
     public int getSquatCount() {
-        return squatCount;
+        return mCount;
     }
 
     public void setSquatCount(int count) {
-        squatCount = count;
+        SquatSensorEventListener.mCount = count;
     }
 
     public void registerListener() {
-        this.hasSensor = sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), 1);
+        this.hasSensor = mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), 1);
     }
 
     public void unregisterListener() {
-        if (sensorManager != null) {
-            sensorManager.unregisterListener(this);
+        if (mSensorManager != null) {
+            mSensorManager.unregisterListener(this);
             this.hasSensor = false;
         }
     }
@@ -63,54 +60,60 @@ public class SquatSensorEventListener implements SensorEventListener {
         return this.hasSensor;
     }
 
+    @Override
     public void onSensorChanged(SensorEvent sensorEvent) {
         long currentTimeMillis = System.currentTimeMillis();
-        long diffTime = currentTimeMillis - lastTime;
+        long diffTime = currentTimeMillis - mLastTime;
         if (diffTime > 100) {
             diffTime = 0;
         }
-        lastTime = currentTimeMillis;
-        double sqrt = Math.sqrt((double) ((sensorEvent.values[0] * sensorEvent.values[0]) + (sensorEvent.values[1] * sensorEvent.values[1])));
-        sqrt = Math.sqrt((sqrt * sqrt) + ((double) (sensorEvent.values[2] * sensorEvent.values[2]))) - 9.706650161743164d;
-        if (squatTime == 0) {
+        mLastTime = currentTimeMillis;
+        double sqrt = Math.sqrt((sensorEvent.values[0] * sensorEvent.values[0]) + (sensorEvent.values[1] * sensorEvent.values[1]));
+        sqrt = Math.sqrt((sqrt * sqrt) + (sensorEvent.values[2] * sensorEvent.values[2])) - 9.706650161743164d;
+        if (mTotalTime == 0) {
             if (sqrt < -0.6d) {
-                squatTime = diffTime;
-                squatOkTime = 0;
+                mTotalTime = diffTime;
+                mAdjustTime = 0;
             }
         } else if (sqrt < -0.2d) {
-            squatTime += diffTime;
-            squatOkTime = 0;
-        } else if (squatTime > 0) {
-            squatTime -= diffTime;
+            mTotalTime += diffTime;
+            mAdjustTime = 0;
+        } else if (mTotalTime > 0) {
+            mTotalTime -= diffTime;
         }
         if (sqrt > 0.0d) {
-            if (squatTime > 225) {
-                squatOkTime = (int) (((long) squatOkTime) + diffTime);
-                squatTime += diffTime;
+            if (mTotalTime > 225) {
+                mAdjustTime = (int) (mAdjustTime + diffTime);
+                mTotalTime += diffTime;
                 if (sqrt > 3.0d) {
-                    squatOkTime = (int) (((long) squatOkTime) + diffTime);
+                    mAdjustTime = (int) (mAdjustTime + diffTime);
                 }
-                if (isSquat && ((long) squatOkTime) > 450) {
-                    isSquat = false;
-                    squatCount += 1;
-                    squatTime = 0;
+                if (mayBeSquat && mAdjustTime > 450) {
+                    mayBeSquat = false;
+                    mCount += 1;
+                    mTotalTime = 0;
                     StringBuilder stringBuilder = new StringBuilder();
                     stringBuilder.append("count: ");
-                    stringBuilder.append(squatCount);
-                    Log.v("HSquatSensor", stringBuilder.toString());
-                    this.runnable.run();
+                    stringBuilder.append(mCount);
+                    Log.v(TAG, stringBuilder.toString());
+                    this.mRunnable.run();
                     return;
                 }
                 return;
             }
-            squatTime = 0;
-            squatOkTime = 0;
-            isSquat = true;
-        } else if (squatOkTime > 450) {
+            mTotalTime = 0;
+            mAdjustTime = 0;
+            mayBeSquat = true;
+        } else if (mAdjustTime > 450) {
             diffTime *= 2;
-            squatTime -= diffTime;
-            squatOkTime = (int) (((long) squatOkTime) - diffTime);
-            isSquat = true;
+            mTotalTime -= diffTime;
+            mAdjustTime = (int) (mAdjustTime - diffTime);
+            mayBeSquat = true;
         }
     }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+    }
+
 }
