@@ -1,0 +1,49 @@
+    public static synchronized void copyFile(final InputStream sourcefile, final OutputStream targetFile) {
+        try {
+            long statTime = System.currentTimeMillis();
+//            FileInputStream fileInputStream = new FileInputStream(sourcefile);
+            int buffSize = 10 * 1024;//10
+            BufferedInputStream inbuff = new BufferedInputStream(sourcefile, buffSize);
+//            FileOutputStream fileOutputStream = new FileOutputStream(targetFile);// 新建文件输出流并对它进行缓冲
+            BufferedOutputStream outbuff = new BufferedOutputStream(targetFile, buffSize);
+            //int fileVolume = (int) (dirSize / (1024 * 1024));
+            FileChannel fileChannelOutput = null;//fileOutputStream.getChannel();
+            ReadableByteChannel readableByteChannel = Channels.newChannel(inbuff);
+            FileChannel fileChannelInput = null;//fileInputStream.getChannel();
+            WritableByteChannel writableByteChannel = Channels.newChannel(outbuff);
+            //fileChannelInput.transferTo(0, fileChannelInput.size(), fileChannelOutput);
+            long transferSize = 0;
+            DecimalFormat decimalFormat = new DecimalFormat(".00");//构造方法的字符格式这里如果小数不足2位,会以0补足.
+            /*ByteBuffer buffer = ByteBuffer.allocate(buffSize);
+            while (readableByteChannel.read(buffer) != -1) {
+                buffer.flip();
+                transferSize += writableByteChannel.write(buffer);
+                buffer.clear();
+            }*/
+            byte[] bt = new byte[buffSize];
+            int c;
+            while ((c = inbuff.read(bt)) > 0) {
+                transferSize += c;
+                outbuff.write(bt, 0, c);
+            }
+            outbuff.flush();
+            inbuff.close();
+            outbuff.close();
+            targetFile.flush();
+            targetFile.close();
+            sourcefile.close();
+            writableByteChannel.close();
+            readableByteChannel.close();
+            /*fileOutputStream.close();
+            fileInputStream.close();
+            fileChannelOutput.close();
+            fileChannelInput.close();*/
+            float time = (System.currentTimeMillis() - statTime) / 1000f;
+            float speed = transferSize / (time * 1024 * 1024f);
+            Log.e(WiFiDirectActivity.TAG, "speed:" + decimalFormat.format(speed) + "MB/s, time:" + decimalFormat.format(time) + "s");
+        } catch (FileNotFoundException e) {
+            Log.e(WiFiDirectActivity.TAG, "CopyPasteUtil copyFile error:" + e.getMessage());
+        } catch (IOException e) {
+            Log.e(WiFiDirectActivity.TAG, "CopyPasteUtil copyFile error:" + e.getMessage());
+        }
+    }
