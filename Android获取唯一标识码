@@ -1,0 +1,67 @@
+ANDROID_ID是设备第一次启动时产生和存储的64bit的一个数，当设备被wipe（刷机，恢复出厂设置）后该数重置。
+
+String secureId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+
+这里要注意的是，产生的唯一 ID 会随着你恢复出厂设置而一直存在。如果你需要在恢复出厂设置后重置你的唯一 ID ，你可以考虑使用 UUID 而不是设备 ID
+
+ANDROID_ID的优点：
+> Settings.Secure.ANDROID_ID.这是在设备首次启动时生成并存储的64位数量(ANDROID_ID对于Android 2.2和4.2来说不是唯一的)
+ANDROID_ID的缺点：
+> ANDROID_ID可以在出厂重置时更改.
+> ANDROID_ID可以为null
+>它可以在root手机上轻松更改
+>多个制造商的几个设备受到2.2中ANDROID_ID错误的影响,并且所有设备都具有相同的ANDROID_ID,即9774d56d682e549c.这也是模拟器报告的相同设备ID
+
+Android6.0之前的方法（已过时）
+DEVICE_ID
+通getSystemService(Context.TELEPHONY_SERVICE).getDeviceId()获取，但是6.0之后必须申请READ_PHONE_STATE，并且获取到的这个值在不同的厂商和设备中并不可靠。
+
+MAC地址
+这个是无线网卡的MAC地址，这个需要ACCESS_WIFI_STATE权限，并且很多情况下并获取不到这个值，也并不是十分可靠。
+
+ANDROID_ID
+这个值是当一个新的设备第一次启动时，或者恢复出厂设置时，系统会生成一个64位的数字，这个值目前（Android4.0之后）已经非常可靠，但是仍有个别厂商的定制系统的BUG，导致这个值返回null。
+
+获取设备唯一标识的正确姿势
+由于ANDROID_ID的值相对稳定和可靠，并且不需要申请权限，所以我们获取设备的唯一标识应该使用这个值，同时我们应该考虑到一些极端情况和安全问题。
+
+获取ANDROID_ID
+public static String getAndroidID() {
+    String id = Settings.Secure.getString(
+            Utils.getApp().getContentResolver(),
+            Settings.Secure.ANDROID_ID
+    );
+    return id == null ? "" : id;
+}
+构造UUID，防止直接暴露ANDROID_ID
+private static String getDeviceUUid()
+{
+   String androidId = DeviceUtils.getAndroidID();
+   UUID deviceUuid = new UUID(androidId.hashCode(), ((long)androidId.hashCode() << 32));
+   return deviceUuid.toString();
+}
+考虑极端情况，我们自己生成一个应用级别的UUID
+这种情况我们需要将生成的UUID保存到SharedPreference中，只要应用不被卸载或者清除数据，这个值就不会变。
+private static String getAppUUid() {
+   String uuid = SPUtils.getInstance().getString(PREF_KEY_UUID);
+   if (TextUtils.isEmpty(uuid)) {
+       uuid = UUID.randomUUID().toString();
+       //这里需要保存到SharedPreference中
+       ...
+   }
+   return uuid;
+}
+将上面的获取方法封装到一个方法中
+public static String getUUID() {
+    String uuid = getDeviceUUid();
+    if (TextUtils.isEmpty(uuid)) {
+        uuid = getAppUUid();
+    }
+    return uuid;
+}
+总结
+这些获取UUID方法非常简单，并且在应用的开发中可以满足99%的需求，不需要动态申请权限，也非常可靠，但是在使用时需要清楚其生成过程，以便应用到安全性要求非常高的场景中。
+
+come from 
+https://blog.csdn.net/qq_36488374/article/details/102793274 
+https://www.jianshu.com/p/a185d3a702c6
