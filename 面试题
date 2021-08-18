@@ -1,0 +1,18 @@
+1、volatile作用是什么？内存可见性，避免指令重排序。
+2、是否有原子性？那一般怎么规避？（锁，atomicxxxx工具类）
+3、ConcurerntHashMap为啥比HashTable性能好？
+4、switch能否用String？注意点是什么？
+5、列举final字段初始化地方
+6、请列举Http返回码及各自功能。协议怎么支持断点续传？
+7、ArrayList LinkList HashMap对比
+8、请列举源码中出现的设计模式：单例（都有哪些），builder，策略等
+9、view事件冲突解决方案
+10、LinearLayout, RelatLayout特点及性能
+11、数据持久化都用哪些技术？
+12、若用Sqlite问升级怎么做？Rename/删除字段时？
+13、sqlite中有需要更新table怎么做？
+14、内存泄漏概念，都有哪些行为引起内存泄漏？一般怎么排查？
+15、GCRoot?
+16、引用类型
+17、非静态内部类为啥会持有外部类引用
+18、性能优化都做过哪些？
