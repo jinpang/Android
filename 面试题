@@ -2,6 +2,19 @@
 2、是否有原子性？那一般怎么规避？（锁，atomicxxxx工具类）
 3、ConcurerntHashMap为啥比HashTable性能好？
 4、switch能否用String？注意点是什么？
+答：参数可以是整数表达式，JDK1.5开始支持Enum类，JDK1.7开始支持String。
+    当字符串不会频繁改变时可以用枚举来代替String：用Enum.parse。
+注意：
+1.JDK1.6 的版本中，switch后面的括号里面只能放int类型的值，注意是只能放int类型，但是放byte，short，char类型的也可以。
+是因为byte，short，char可以自动提升（自动类型转换）为int。而不能放long型和String型。
+JDK1.7 的版本中，switch中可以使用字串String。但仍不支持long型。
+2.String时不能传入null作为参数，同时case语句中使用的字符串也不能为null，因为底层是通过equals和hashmap来判断的
+hashcode返回的是int型
+可以发现：进行switch的实际是hash值，然后用equals进行安全检查（因为hash值可能会发生碰撞），所以性能不如枚举。switch支持String其实是一个语法糖，在编译后的字节码文件中都会被还原成原生类型，并在相应位置插入了强制转换代码，底层的JVM在switch上并没有修改。
+当传入switch的是null时，在运行时对一个null调用hashCode()方法，会抛出NullPointerException；如果case写的是null，那么在编译时无法求出hashcode，就会编译报错。
+
+原理：hashCode()+equals() 
+编译器在编译期间给代码做了转换。
 5、列举final字段初始化地方
 6、请列举Http返回码及各自功能。协议怎么支持断点续传？
 7、ArrayList LinkList HashMap对比
