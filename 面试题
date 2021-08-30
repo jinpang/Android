@@ -100,3 +100,8 @@ ANR 日志生成原理
 正常情况下，系统的 libart.so 会收到该信号，并调用 Java 虚拟机的 dump 方法生成 traces。
 以友盟+的 U-APM 应用性能监控平台为例，集成SDK 后，SDK 会拦截 SIGQUIT。在出现 ANR 时，libcrashsdk.so 会优先收到信号，并生成 traces 和 ANR 日志。
 在 SDK 处理完信号后，会将信号继续传递给系统的 libart.so，让系统生成 ANR traces.txt。
+
+21、深入探索Android稳定性优化
+答：https://juejin.cn/post/6844903972587716621
+
+
