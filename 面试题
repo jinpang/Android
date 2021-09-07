@@ -104,4 +104,10 @@ ANR 日志生成原理
 21、深入探索Android稳定性优化
 答：https://juejin.cn/post/6844903972587716621
 
+22、使用addr2line分析Crash日志
+在NDK开发中经常会出现应用Crash的情况，而JNI层的报错信息，不像Java层报错信息那样可以直接在日志中看到错误的行数，JNI层中出现的错误直接看根本定位不到错误的位置。
+通常来说，JNI报的基本都是堆栈信息，需要NDK的一些工具进行地址转换，转换后即可看到错误的位置。这些地址转换的工具有addr2line、ndk-stack等。
+原文链接：https://blog.csdn.net/Xiongjiayo/article/details/86514623
+答：https://blog.csdn.net/Xiongjiayo/article/details/86514623
+https://blog.csdn.net/afei__/article/details/81181827
 
